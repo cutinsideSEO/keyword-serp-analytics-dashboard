@@ -19,9 +19,11 @@ from app.schemas import (
     CategoryOpportunityDashboard,
     CategoryProtectionBreakdown,
     CategoryValueLossStats,
+    CompetitorBrandedDashboard,
     CompetitorStats,
     DomainTypeLossStats,
     InfluentialDomain,
+    ModifierGroupOpportunityBreakdown,
     ModifierGroupProtectionBreakdown,
     ModifierGroupStats,
 )
@@ -293,3 +295,66 @@ async def get_category_opportunities(
     """
     service = AnalyticsService(db)
     return await service.get_category_opportunities(brand)
+
+
+@router.get("/competitor-branded-opportunities", response_model=CompetitorBrandedDashboard)
+async def get_competitor_branded_opportunities(
+    brand: str = Query(..., description="Brand name to analyze"),
+    db: AsyncSession = Depends(get_db),
+) -> CompetitorBrandedDashboard:
+    """
+    Get opportunities on competitor branded keywords.
+
+    Shows modifier groups for keywords that have a brand tag but NOT
+    the selected brand. These are competitor branded keywords where
+    the selected brand can potentially capture traffic.
+
+    Example: If analyzing "Trek", this shows keywords branded to
+    "Specialized", "Giant", "Cannondale" etc.
+
+    Args:
+        brand: Brand name to analyze
+        db: Database session
+
+    Returns:
+        Competitor branded opportunities dashboard with KPIs and modifier groups
+    """
+    service = AnalyticsService(db)
+    return await service.get_competitor_branded_opportunities(brand)
+
+
+@router.get(
+    "/modifier-group-opportunity-breakdown",
+    response_model=ModifierGroupOpportunityBreakdown,
+)
+async def get_modifier_group_opportunity_breakdown(
+    brand: str = Query(..., description="Brand name to analyze"),
+    modifier_group: str = Query(..., description="Modifier group to break down"),
+    keyword_type: str = Query(
+        ...,
+        description="Type of keywords: 'nonbranded' or 'competitor_branded'",
+        regex="^(nonbranded|competitor_branded)$",
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> ModifierGroupOpportunityBreakdown:
+    """
+    Get detailed breakdown for a modifier group (lazy loaded on expand).
+
+    Returns rich breakdown including:
+    - Top category values with capture stats per value
+    - Competitors grouped by domain type
+    - Detailed keyword examples with rank, volume, winner info
+
+    Args:
+        brand: Brand name to analyze
+        modifier_group: The modifier group to break down
+        keyword_type: Type of keywords ('nonbranded' or 'competitor_branded')
+        db: Database session
+
+    Returns:
+        Complete modifier group opportunity breakdown
+    """
+    service = AnalyticsService(db)
+    return await service.get_modifier_group_opportunity_breakdown(
+        brand, modifier_group, keyword_type
+    )

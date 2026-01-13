@@ -33,6 +33,8 @@ import type {
   ModifierGroupBreakdown,
   // Category Opportunities types
   CategoryOpportunityDashboard,
+  CompetitorBrandedDashboard,
+  ModifierGroupOpportunityBreakdown,
 } from '../types';
 
 // =============================================================================
@@ -350,6 +352,34 @@ export async function getCategoryOpportunities(
   const response = await apiClient.get<CategoryOpportunityDashboard>(
     '/dashboard/category-opportunities',
     { params: { brand } }
+  );
+  return response.data;
+}
+
+export async function getCompetitorBrandedOpportunities(
+  brand: string
+): Promise<CompetitorBrandedDashboard> {
+  const response = await apiClient.get<CompetitorBrandedDashboard>(
+    '/dashboard/competitor-branded-opportunities',
+    { params: { brand } }
+  );
+  return response.data;
+}
+
+export async function getModifierGroupOpportunityBreakdown(
+  brand: string,
+  modifierGroup: string,
+  keywordType: 'nonbranded' | 'competitor_branded'
+): Promise<ModifierGroupOpportunityBreakdown> {
+  const response = await apiClient.get<ModifierGroupOpportunityBreakdown>(
+    '/dashboard/modifier-group-opportunity-breakdown',
+    {
+      params: {
+        brand,
+        modifier_group: modifierGroup,
+        keyword_type: keywordType,
+      },
+    }
   );
   return response.data;
 }

@@ -457,3 +457,48 @@ export interface CategoryOpportunityDashboard {
   kpis: CategoryOpportunityKPIs;
   modifier_groups: ModifierGroupOpportunity[];
 }
+
+// =============================================================================
+// Enhanced Opportunity Breakdown Types
+// =============================================================================
+
+export interface OpportunityKeywordDetail {
+  keyword: string;
+  volume: number;
+  winner_domain: string | null;
+  winner_position: number | null;
+  brand_position: number | null;
+  winner_domain_type: string | null;
+}
+
+export interface OpportunityCategoryValue {
+  category_name: string;
+  value: string;
+  total_keywords: number;
+  total_volume: number;
+  keywords_captured: number;
+  volume_captured: number;
+  capture_rate: number;
+  top_keywords: OpportunityKeywordDetail[];
+}
+
+export interface ModifierGroupOpportunityBreakdown {
+  modifier_group: string;
+  total_keywords: number;
+  total_volume: number;
+  keywords_captured: number;
+  volume_captured: number;
+  capture_rate: number;
+  avg_brand_position: number | null;
+  top_values: OpportunityCategoryValue[];
+  competitors_by_type: Record<string, OpportunityCompetitor[]>;
+  example_keywords: OpportunityKeywordDetail[];
+}
+
+export interface CompetitorBrandedDashboard {
+  brand_name: string;
+  brand_domains: string[];
+  competitor_brands: string[];
+  kpis: CategoryOpportunityKPIs;
+  modifier_groups: ModifierGroupOpportunity[];
+}

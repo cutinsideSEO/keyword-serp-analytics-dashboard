@@ -11,6 +11,7 @@ import { InfoTooltip } from '../common/InfoTooltip';
 
 interface OpportunityKPICardsProps {
   kpis: CategoryOpportunityKPIs;
+  variant?: 'nonbranded' | 'competitor';
 }
 
 interface KPICardProps {
@@ -109,20 +110,30 @@ function KPICard({ title, value, subtitle, trend, icon, gradient, glowColor, del
   );
 }
 
-export function OpportunityKPICards({ kpis }: OpportunityKPICardsProps) {
+export function OpportunityKPICards({ kpis, variant = 'nonbranded' }: OpportunityKPICardsProps) {
+  const isCompetitor = variant === 'competitor';
+
   const cards = [
     {
-      title: 'Non-Branded Keywords',
+      title: isCompetitor ? 'Competitor Keywords' : 'Non-Branded Keywords',
       value: formatNumber(kpis.total_nonbranded_keywords),
       subtitle: `${formatCompactNumber(kpis.total_nonbranded_volume)} search volume`,
       icon: <Search className="w-6 h-6" />,
-      gradient: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-      glowColor: 'rgba(16, 185, 129, 0.15)',
+      gradient: isCompetitor
+        ? 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)'
+        : 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+      glowColor: isCompetitor
+        ? 'rgba(139, 92, 246, 0.15)'
+        : 'rgba(16, 185, 129, 0.15)',
       delay: 0,
       tooltipInfo: {
-        title: 'Non-Branded Keywords',
-        description: 'Keywords that don\'t contain any brand mention. These represent category/generic searches where you can capture market share.',
-        calculation: 'Count of keywords without brand tags in the database'
+        title: isCompetitor ? 'Competitor Branded Keywords' : 'Non-Branded Keywords',
+        description: isCompetitor
+          ? 'Keywords that contain competitor brand mentions. These are opportunities to capture traffic from competitor searches.'
+          : 'Keywords that don\'t contain any brand mention. These represent category/generic searches where you can capture market share.',
+        calculation: isCompetitor
+          ? 'Count of keywords with brand tags (excluding your brand)'
+          : 'Count of keywords without brand tags in the database'
       }
     },
     {
@@ -134,13 +145,19 @@ export function OpportunityKPICards({ kpis }: OpportunityKPICardsProps) {
         isPositive: kpis.overall_capture_rate >= 10,
       },
       icon: <Target className="w-6 h-6" />,
-      gradient: 'linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)',
-      glowColor: 'rgba(20, 184, 166, 0.15)',
+      gradient: isCompetitor
+        ? 'linear-gradient(135deg, #A855F7 0%, #9333EA 100%)'
+        : 'linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)',
+      glowColor: isCompetitor
+        ? 'rgba(168, 85, 247, 0.15)'
+        : 'rgba(20, 184, 166, 0.15)',
       delay: 0.1,
       tooltipInfo: {
         title: 'Capture Rate',
-        description: 'Non-branded keywords where your brand ranks #1. This shows how well you compete on generic/category searches.',
-        calculation: '(Keywords where you rank #1 / Total non-branded keywords) × 100'
+        description: isCompetitor
+          ? 'Competitor branded keywords where your brand ranks #1. Shows how well you compete on competitor searches.'
+          : 'Non-branded keywords where your brand ranks #1. This shows how well you compete on generic/category searches.',
+        calculation: '(Keywords where you rank #1 / Total keywords) × 100'
       }
     },
     {
@@ -157,8 +174,10 @@ export function OpportunityKPICards({ kpis }: OpportunityKPICardsProps) {
       delay: 0.2,
       tooltipInfo: {
         title: 'Volume to Capture',
-        description: 'Total search volume from non-branded keywords where competitors rank #1. This represents your opportunity for growth.',
-        calculation: 'Total non-branded volume - Volume from keywords where you rank #1'
+        description: isCompetitor
+          ? 'Search volume from competitor keywords where you don\'t rank #1. Your opportunity to steal competitor traffic.'
+          : 'Total search volume from non-branded keywords where competitors rank #1. This represents your opportunity for growth.',
+        calculation: 'Total volume - Volume from keywords where you rank #1'
       }
     },
     {
@@ -166,8 +185,12 @@ export function OpportunityKPICards({ kpis }: OpportunityKPICardsProps) {
       value: kpis.biggest_opportunity_group || 'N/A',
       subtitle: `${formatCompactNumber(kpis.biggest_opportunity_volume)} volume`,
       icon: <Zap className="w-6 h-6" />,
-      gradient: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
-      glowColor: 'rgba(139, 92, 246, 0.15)',
+      gradient: isCompetitor
+        ? 'linear-gradient(135deg, #EC4899 0%, #DB2777 100%)'
+        : 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
+      glowColor: isCompetitor
+        ? 'rgba(236, 72, 153, 0.15)'
+        : 'rgba(139, 92, 246, 0.15)',
       delay: 0.3,
       tooltipInfo: {
         title: 'Biggest Opportunity',

@@ -1,10 +1,11 @@
 /**
  * Category Opportunities page.
- * Shows non-branded keyword opportunities for a selected brand.
+ * Shows non-branded keyword opportunities AND competitor branded opportunities for a selected brand.
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { Compass } from 'lucide-react';
+import { Compass, Target, Users } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { BrandPicker } from '../components/common/BrandPicker';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorDisplay } from '../components/common/ErrorBoundary';
@@ -12,28 +13,53 @@ import { OpportunityKPICards } from '../components/dashboard/OpportunityKPICards
 import { OpportunityBarChart } from '../components/dashboard/OpportunityBarChart';
 import { OpportunityModifierGroupsTable } from '../components/dashboard/OpportunityModifierGroupsTable';
 import { useApiWithParam } from '../hooks/useApi';
-import { getCategoryOpportunities } from '../api/endpoints';
-import type { CategoryOpportunityDashboard } from '../types';
+import { getCategoryOpportunities, getCompetitorBrandedOpportunities } from '../api/endpoints';
+import type { CategoryOpportunityDashboard, CompetitorBrandedDashboard } from '../types';
 
 export function CategoryOpportunities() {
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
-  const tableRef = useRef<HTMLDivElement>(null);
+  const nonBrandedTableRef = useRef<HTMLDivElement>(null);
+  const competitorTableRef = useRef<HTMLDivElement>(null);
 
-  const fetchDashboard = useCallback(
+  // Fetch non-branded opportunities
+  const fetchNonBranded = useCallback(
     (brand: string) => getCategoryOpportunities(brand),
     []
   );
 
-  const { data, loading, error, refetch } = useApiWithParam<CategoryOpportunityDashboard, string>(
-    fetchDashboard,
-    selectedBrand
+  const {
+    data: nonBrandedData,
+    loading: nonBrandedLoading,
+    error: nonBrandedError,
+    refetch: refetchNonBranded,
+  } = useApiWithParam<CategoryOpportunityDashboard, string>(fetchNonBranded, selectedBrand);
+
+  // Fetch competitor branded opportunities
+  const fetchCompetitorBranded = useCallback(
+    (brand: string) => getCompetitorBrandedOpportunities(brand),
+    []
   );
 
+  const {
+    data: competitorData,
+    loading: competitorLoading,
+    error: competitorError,
+    refetch: refetchCompetitor,
+  } = useApiWithParam<CompetitorBrandedDashboard, string>(fetchCompetitorBranded, selectedBrand);
+
+  const loading = nonBrandedLoading || competitorLoading;
+  const error = nonBrandedError || competitorError;
+
   // Handle click on bar chart to scroll to table
-  const handleGroupClick = (modifierGroup: string) => {
-    // Scroll to table
-    if (tableRef.current) {
-      tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const handleNonBrandedGroupClick = () => {
+    if (nonBrandedTableRef.current) {
+      nonBrandedTableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleCompetitorGroupClick = () => {
+    if (competitorTableRef.current) {
+      competitorTableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
 
@@ -46,7 +72,7 @@ export function CategoryOpportunities() {
             Category Opportunities
           </h1>
           <p className="text-gray-600 text-lg">
-            Discover non-branded keyword opportunities to expand market share
+            Discover keyword opportunities to expand market share
           </p>
         </div>
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-4 min-w-[280px]">
@@ -70,8 +96,8 @@ export function CategoryOpportunities() {
               Select a brand to explore opportunities
             </h3>
             <p className="mt-2 text-sm text-gray-500 max-w-md">
-              Choose a brand from the dropdown above to see non-branded keyword opportunities.
-              These are generic/category searches where your brand can capture market share.
+              Choose a brand from the dropdown above to see keyword opportunities.
+              You'll see both generic/category searches and competitor branded keywords.
             </p>
           </div>
         </div>
@@ -87,15 +113,18 @@ export function CategoryOpportunities() {
         <ErrorDisplay
           error={error}
           message="Failed to load opportunities"
-          onRetry={refetch}
+          onRetry={() => {
+            refetchNonBranded();
+            refetchCompetitor();
+          }}
         />
       )}
 
       {/* Content */}
-      {selectedBrand && data && !loading && (
+      {selectedBrand && !loading && (
         <>
           {/* Brand Info Banner */}
-          {data.brand_domains.length > 0 && (
+          {nonBrandedData && nonBrandedData.brand_domains.length > 0 && (
             <div className="rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-100 border border-emerald-200 px-6 py-4 flex items-start gap-4">
               <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-lg">
                 <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -103,13 +132,17 @@ export function CategoryOpportunities() {
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-semibold text-emerald-900 mb-1">Analyzing opportunities for: {data.brand_name}</p>
-                <p className="text-sm text-emerald-700">Domains: {data.brand_domains.join(', ')}</p>
+                <p className="text-sm font-semibold text-emerald-900 mb-1">
+                  Analyzing opportunities for: {nonBrandedData.brand_name}
+                </p>
+                <p className="text-sm text-emerald-700">
+                  Domains: {nonBrandedData.brand_domains.join(', ')}
+                </p>
               </div>
             </div>
           )}
 
-          {data.brand_domains.length === 0 && (
+          {nonBrandedData && nonBrandedData.brand_domains.length === 0 && (
             <div className="rounded-2xl bg-gradient-to-r from-amber-50 to-amber-100 border border-amber-200 px-6 py-4 flex items-start gap-4">
               <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center flex-shrink-0 shadow-lg">
                 <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -118,30 +151,144 @@ export function CategoryOpportunities() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-amber-900 mb-1">No domains mapped for this brand</p>
-                <p className="text-sm text-amber-700">All non-branded keywords will show as opportunities (0% capture rate) until you map the brand's domain.</p>
+                <p className="text-sm text-amber-700">
+                  All keywords will show as opportunities (0% capture rate) until you map the brand's domain.
+                </p>
               </div>
             </div>
           )}
 
-          {/* KPI Cards */}
-          <OpportunityKPICards kpis={data.kpis} />
+          {/* ============================================================= */}
+          {/* NON-BRANDED OPPORTUNITIES SECTION */}
+          {/* ============================================================= */}
+          {nonBrandedData && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="space-y-6"
+            >
+              {/* Section Header */}
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg">
+                  <Target className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Non-Branded Opportunities</h2>
+                  <p className="text-gray-600">
+                    Generic/category keywords without any brand mention
+                  </p>
+                </div>
+              </div>
 
-          {/* Opportunity Bar Chart */}
-          {data.modifier_groups.length > 0 && (
-            <OpportunityBarChart
-              modifierGroups={data.modifier_groups}
-              limit={10}
-              onGroupClick={handleGroupClick}
-            />
+              {/* KPI Cards */}
+              <OpportunityKPICards kpis={nonBrandedData.kpis} />
+
+              {/* Opportunity Bar Chart */}
+              {nonBrandedData.modifier_groups.length > 0 && (
+                <OpportunityBarChart
+                  modifierGroups={nonBrandedData.modifier_groups}
+                  limit={10}
+                  onGroupClick={handleNonBrandedGroupClick}
+                />
+              )}
+
+              {/* Modifier Groups Table */}
+              <div ref={nonBrandedTableRef}>
+                <OpportunityModifierGroupsTable
+                  modifierGroups={nonBrandedData.modifier_groups}
+                  brandName={nonBrandedData.brand_name}
+                  keywordType="nonbranded"
+                />
+              </div>
+            </motion.div>
           )}
 
-          {/* Modifier Groups Table */}
-          <div ref={tableRef}>
-            <OpportunityModifierGroupsTable
-              modifierGroups={data.modifier_groups}
-              brandName={data.brand_name}
-            />
-          </div>
+          {/* ============================================================= */}
+          {/* COMPETITOR BRANDED OPPORTUNITIES SECTION */}
+          {/* ============================================================= */}
+          {competitorData && competitorData.modifier_groups.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="space-y-6 mt-12 pt-8 border-t-2 border-gray-200"
+            >
+              {/* Section Header */}
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-400 to-indigo-600 flex items-center justify-center shadow-lg">
+                  <Users className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Competitor Branded Opportunities</h2>
+                  <p className="text-gray-600">
+                    Keywords branded to competitors where you can capture traffic
+                  </p>
+                </div>
+              </div>
+
+              {/* Competitor Brands Found */}
+              {competitorData.competitor_brands.length > 0 && (
+                <div className="rounded-xl bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 px-6 py-4">
+                  <p className="text-sm font-semibold text-purple-900 mb-2">
+                    Competitor brands found ({competitorData.competitor_brands.length}):
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {competitorData.competitor_brands.slice(0, 15).map((brand, idx) => (
+                      <span
+                        key={idx}
+                        className="px-3 py-1 rounded-full bg-white border border-purple-200 text-sm text-purple-700 font-medium"
+                      >
+                        {brand}
+                      </span>
+                    ))}
+                    {competitorData.competitor_brands.length > 15 && (
+                      <span className="px-3 py-1 rounded-full bg-purple-100 border border-purple-200 text-sm text-purple-700 font-medium">
+                        +{competitorData.competitor_brands.length - 15} more
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* KPI Cards - Reuse with same style */}
+              <OpportunityKPICards kpis={competitorData.kpis} variant="competitor" />
+
+              {/* Opportunity Bar Chart */}
+              {competitorData.modifier_groups.length > 0 && (
+                <OpportunityBarChart
+                  modifierGroups={competitorData.modifier_groups}
+                  limit={10}
+                  onGroupClick={handleCompetitorGroupClick}
+                />
+              )}
+
+              {/* Modifier Groups Table */}
+              <div ref={competitorTableRef}>
+                <OpportunityModifierGroupsTable
+                  modifierGroups={competitorData.modifier_groups}
+                  brandName={competitorData.brand_name}
+                  keywordType="competitor_branded"
+                />
+              </div>
+            </motion.div>
+          )}
+
+          {/* No Competitor Data Message */}
+          {competitorData && competitorData.modifier_groups.length === 0 && (
+            <div className="mt-12 pt-8 border-t-2 border-gray-200">
+              <div className="rounded-xl bg-gray-50 border border-gray-200 p-8 text-center">
+                <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  No Competitor Branded Keywords Found
+                </h3>
+                <p className="text-gray-600 max-w-md mx-auto">
+                  There are no keywords tagged with competitor brands in this dataset, or all competitor
+                  branded keywords have already been captured.
+                </p>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

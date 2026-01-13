@@ -6,43 +6,31 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ChevronDown,
   ChevronRight,
   Target,
   TrendingUp,
-  Users,
-  Tag,
   FileText,
-  Building2,
-  ShoppingCart,
-  MessageCircle,
-  Newspaper,
 } from 'lucide-react';
 import type { ModifierGroupOpportunity, OpportunityCompetitor } from '../../types';
 import { formatNumber, formatCompactNumber, formatPercent } from '../../utils/formatters';
 import { InfoTooltip } from '../common/InfoTooltip';
+import { useMarketConfig } from '../../contexts/MarketConfigContext';
+import { OpportunityExpandedDetails } from './OpportunityExpandedDetails';
 
 interface OpportunityModifierGroupsTableProps {
   modifierGroups: ModifierGroupOpportunity[];
   brandName: string;
+  keywordType?: 'nonbranded' | 'competitor_branded';
 }
 
-// Domain type configuration for icons and colors
-const domainTypeConfig: Record<string, { icon: React.ElementType; color: string; bgColor: string; textColor: string }> = {
-  Brand: { icon: Building2, color: 'blue', bgColor: 'bg-blue-50', textColor: 'text-blue-700' },
-  Reseller: { icon: ShoppingCart, color: 'purple', bgColor: 'bg-purple-50', textColor: 'text-purple-700' },
-  UGC: { icon: MessageCircle, color: 'amber', bgColor: 'bg-amber-50', textColor: 'text-amber-700' },
-  '3rd Party': { icon: Newspaper, color: 'teal', bgColor: 'bg-teal-50', textColor: 'text-teal-700' },
-  Unknown: { icon: FileText, color: 'gray', bgColor: 'bg-gray-50', textColor: 'text-gray-700' },
-};
-
 function CompetitorBadge({ competitor }: { competitor: OpportunityCompetitor }) {
-  const config = domainTypeConfig[competitor.domain_type] || domainTypeConfig.Unknown;
-  const Icon = config.icon;
+  const { getStyles, getIcon } = useMarketConfig();
+  const styles = getStyles(competitor.domain_type);
+  const Icon = getIcon(competitor.domain_type);
 
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${config.bgColor} ${config.textColor} border border-${config.color}-200`}
+      className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${styles.bgColor} ${styles.textColor} ${styles.borderColor} border`}
     >
       <Icon className="w-3 h-3" />
       {competitor.domain.length > 15 ? competitor.domain.substring(0, 15) + '...' : competitor.domain}
@@ -50,135 +38,10 @@ function CompetitorBadge({ competitor }: { competitor: OpportunityCompetitor }) 
   );
 }
 
-function ExpandedDetails({
-  mg,
-  brandName,
-}: {
-  mg: ModifierGroupOpportunity;
-  brandName: string;
-}) {
-  // Group competitors by domain type
-  const competitorsByType = mg.top_competitors.reduce<Record<string, OpportunityCompetitor[]>>(
-    (acc, comp) => {
-      const type = comp.domain_type || 'Unknown';
-      if (!acc[type]) acc[type] = [];
-      acc[type].push(comp);
-      return acc;
-    },
-    {}
-  );
-
-  return (
-    <motion.div
-      initial={{ height: 0, opacity: 0 }}
-      animate={{ height: 'auto', opacity: 1 }}
-      exit={{ height: 0, opacity: 0 }}
-      transition={{ duration: 0.3 }}
-      className="overflow-hidden"
-    >
-      <div className="py-4 px-6 bg-gradient-to-r from-gray-50 to-emerald-50/30 border-t border-gray-100">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Competitors by Domain Type */}
-          <div className="lg:col-span-2">
-            <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-              <Users className="w-4 h-4 text-emerald-600" />
-              Top Competitors by Domain Type
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Object.entries(competitorsByType).map(([type, competitors]) => {
-                const config = domainTypeConfig[type] || domainTypeConfig.Unknown;
-                const Icon = config.icon;
-
-                return (
-                  <div
-                    key={type}
-                    className={`p-3 rounded-lg border ${config.bgColor} border-${config.color}-200`}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <Icon className={`w-4 h-4 ${config.textColor}`} />
-                      <span className={`text-sm font-semibold ${config.textColor}`}>{type}</span>
-                    </div>
-                    <div className="space-y-1">
-                      {competitors.map((comp, idx) => (
-                        <div key={idx} className="flex justify-between text-xs">
-                          <span className="text-gray-700 truncate max-w-[150px]">
-                            {comp.domain}
-                          </span>
-                          <span className="font-medium text-gray-900">
-                            {formatCompactNumber(comp.wins_volume)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-              {Object.keys(competitorsByType).length === 0 && (
-                <div className="col-span-2 text-sm text-gray-500 italic">
-                  No competitors ranking #1 on these keywords
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Tags & Example Keywords */}
-          <div>
-            {/* Top Tags */}
-            <div className="mb-4">
-              <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                <Tag className="w-4 h-4 text-emerald-600" />
-                Top Tags
-              </h4>
-              <div className="flex flex-wrap gap-1">
-                {Object.entries(mg.top_tags).slice(0, 5).map(([tag, count]) => {
-                  const [category, value] = tag.split(':');
-                  return (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center px-2 py-1 rounded-md bg-white text-xs font-medium text-gray-700 border border-gray-200"
-                    >
-                      <span className="text-emerald-600 mr-1">{category}:</span>
-                      {value} ({count})
-                    </span>
-                  );
-                })}
-                {Object.keys(mg.top_tags).length === 0 && (
-                  <span className="text-sm text-gray-500 italic">No tags</span>
-                )}
-              </div>
-            </div>
-
-            {/* Example Keywords */}
-            <div>
-              <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-emerald-600" />
-                Example Keywords
-              </h4>
-              <div className="flex flex-wrap gap-1">
-                {mg.example_keywords.slice(0, 5).map((kw, idx) => (
-                  <span
-                    key={idx}
-                    className="text-xs px-2 py-1 rounded-md bg-white text-gray-700 border border-gray-200 keyword-tag"
-                    dir="auto"
-                  >
-                    {kw}
-                  </span>
-                ))}
-                {mg.example_keywords.length === 0 && (
-                  <span className="text-sm text-gray-500 italic">No examples</span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
 export function OpportunityModifierGroupsTable({
   modifierGroups,
   brandName,
+  keywordType = 'nonbranded',
 }: OpportunityModifierGroupsTableProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
@@ -295,14 +158,14 @@ export function OpportunityModifierGroupsTable({
                       </div>
                     </td>
 
-                    {/* Opportunity Size */}
+                    {/* Opportunity Size - Volume first, then keywords */}
                     <td className="py-4 px-4 text-right">
                       <div className="space-y-0.5">
                         <div className="font-bold text-gray-900">
-                          {formatNumber(mg.total_keywords)}
+                          {formatCompactNumber(mg.total_volume)}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {formatCompactNumber(mg.total_volume)} vol
+                          {formatNumber(mg.total_keywords)} keywords
                         </div>
                       </div>
                     </td>
@@ -384,12 +247,16 @@ export function OpportunityModifierGroupsTable({
                     </td>
                   </motion.tr>
 
-                  {/* Expanded Details */}
+                  {/* Expanded Details - Lazy loaded */}
                   <AnimatePresence>
                     {isExpanded && (
                       <tr>
                         <td colSpan={8} className="p-0">
-                          <ExpandedDetails mg={mg} brandName={brandName} />
+                          <OpportunityExpandedDetails
+                            brandName={brandName}
+                            modifierGroup={mg.modifier_group}
+                            keywordType={keywordType}
+                          />
                         </td>
                       </tr>
                     )}

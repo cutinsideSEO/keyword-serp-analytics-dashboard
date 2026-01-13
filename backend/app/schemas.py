@@ -694,6 +694,66 @@ class CategoryOpportunityDashboard(BaseSchema):
     modifier_groups: List[ModifierGroupOpportunity] = Field(default_factory=list)
 
 
+# =============================================================================
+# Enhanced Opportunity Breakdown Schemas
+# =============================================================================
+
+
+class OpportunityKeywordDetail(BaseSchema):
+    """Detailed keyword with full competitive data."""
+
+    keyword: str
+    volume: int
+    winner_domain: Optional[str] = None
+    winner_position: Optional[int] = None
+    brand_position: Optional[int] = None
+    winner_domain_type: Optional[str] = None
+
+
+class OpportunityCategoryValue(BaseSchema):
+    """Category value stats within an opportunity modifier group."""
+
+    category_name: str
+    value: str
+    total_keywords: int = 0
+    total_volume: int = 0
+    keywords_captured: int = 0
+    volume_captured: int = 0
+    capture_rate: float = 0.0
+    top_keywords: List[OpportunityKeywordDetail] = Field(default_factory=list)
+
+
+class ModifierGroupOpportunityBreakdown(BaseSchema):
+    """Full breakdown for a modifier group (lazy loaded on expand)."""
+
+    modifier_group: str
+    total_keywords: int = 0
+    total_volume: int = 0
+    keywords_captured: int = 0
+    volume_captured: int = 0
+    capture_rate: float = 0.0
+    avg_brand_position: Optional[float] = None
+
+    # Top category values with detailed stats
+    top_values: List[OpportunityCategoryValue] = Field(default_factory=list)
+
+    # Competitors grouped by domain type
+    competitors_by_type: Dict[str, List[OpportunityCompetitor]] = Field(default_factory=dict)
+
+    # Detailed keyword examples (not just strings)
+    example_keywords: List[OpportunityKeywordDetail] = Field(default_factory=list)
+
+
+class CompetitorBrandedDashboard(BaseSchema):
+    """Dashboard for competitor branded keywords analysis."""
+
+    brand_name: str
+    brand_domains: List[str] = Field(default_factory=list)
+    competitor_brands: List[str] = Field(default_factory=list)  # List of competitor brand names found
+    kpis: CategoryOpportunityKPIs
+    modifier_groups: List[ModifierGroupOpportunity] = Field(default_factory=list)
+
+
 # Update forward references
 KeywordWithSerp.model_rebuild()
 BrandWithDomains.model_rebuild()
