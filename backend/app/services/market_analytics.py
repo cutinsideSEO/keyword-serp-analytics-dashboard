@@ -3,6 +3,8 @@ Market Analytics Service
 
 Provides market-wide analytics independent of any single brand.
 All methods operate on the entire dataset to give market overview.
+
+Domain types are configurable per market via market_config.py
 """
 
 import logging
@@ -12,6 +14,7 @@ from sqlalchemy import and_, case, distinct, func, or_, select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.market_config import get_market_config
 from app.models import (
     BrandDomain,
     Category,
@@ -20,6 +23,9 @@ from app.models import (
     KeywordTag,
     SerpResult,
 )
+
+# Get market configuration
+market_config = get_market_config()
 from app.schemas import (
     ShareOfSearchItem,
     DomainVisibilityItem,
@@ -578,11 +584,14 @@ class MarketAnalyticsService:
             total_volume = sum(k["volume"] for k in keywords.values())
 
             # Get brand domains (all domains, not just primary)
+            # Use brand type from market config
+            brand_type = market_config.get_brand_type()
+            brand_type_name = brand_type.display_name if brand_type else "Brand"
             domains_query = (
                 select(BrandDomain.domain_id)
                 .where(
                     BrandDomain.brand_name == brand_name,
-                    BrandDomain.domain_type == "Brand"
+                    BrandDomain.domain_type == brand_type_name
                 )
             )
             domains_result = await self.session.execute(domains_query)
@@ -876,7 +885,7 @@ class MarketAnalyticsService:
 
         # Get top players by type (same approach as modifier groups - uses optimized bulk query)
         top_players_by_type = {}
-        for dtype in ["Brand", "Reseller", "UGC", "3rd Party"]:
+        for dtype in market_config.get_domain_type_names():
             players = await self.get_domain_visibility_by_type(dtype, limit=5)
             top_players_by_type[dtype] = players
 
@@ -1015,7 +1024,7 @@ class MarketAnalyticsService:
 
         # Get top players by type
         top_players_by_type = {}
-        for dtype in ["Brand", "Reseller", "UGC", "3rd Party"]:
+        for dtype in market_config.get_domain_type_names():
             players = await self.get_domain_visibility_by_type(dtype, limit=5)
             top_players_by_type[dtype] = players
 
@@ -1051,12 +1060,24 @@ class MarketAnalyticsService:
         """
         # Fetch all components
         share_of_search = await self.get_share_of_search(limit=20)
-        top_retailers = await self.get_domain_visibility_by_type("Reseller", limit=10)
 
-        # Get influential voices (UGC + 3rd Party combined)
-        ugc_voices = await self.get_domain_visibility_by_type("UGC", limit=10)
-        third_party_voices = await self.get_domain_visibility_by_type("3rd Party", limit=10)
-        influential_voices = ugc_voices + third_party_voices
+        # Get non-brand domain types from config
+        non_brand_types = market_config.get_non_brand_type_names()
+
+        # First non-brand type is treated as "retailers" (e.g., Comparison Site, Reseller)
+        # Remaining types are treated as "influential voices" (e.g., UGC, 3rd Party)
+        retailer_type = non_brand_types[0] if non_brand_types else None
+        voice_types = non_brand_types[1:] if len(non_brand_types) > 1 else []
+
+        top_retailers = []
+        if retailer_type:
+            top_retailers = await self.get_domain_visibility_by_type(retailer_type, limit=10)
+
+        # Get influential voices (all remaining non-brand types combined)
+        influential_voices = []
+        for voice_type in voice_types:
+            voices = await self.get_domain_visibility_by_type(voice_type, limit=10)
+            influential_voices.extend(voices)
         influential_voices.sort(key=lambda x: x.visibility_score, reverse=True)
         influential_voices = influential_voices[:10]
 

@@ -1,45 +1,26 @@
 /**
  * Modern Influential Voices table with gradient styling.
+ * Uses dynamic domain types from market configuration.
  */
 
 import { motion } from 'framer-motion';
-import { Crown, Layers, TrendingUp, Award } from 'lucide-react';
+import { Crown, Layers, Award } from 'lucide-react';
 import type { InfluentialDomain } from '../../types';
 import { formatNumber } from '../../utils/formatters';
 import { InfoTooltip } from '../common/InfoTooltip';
+import { useMarketConfig } from '../../contexts/MarketConfigContext';
 
 interface InfluentialVoicesTableProps {
   influentialVoices: InfluentialDomain[];
   brandName: string;
 }
 
-const DOMAIN_TYPE_STYLES: Record<string, { gradient: string; bgColor: string; textColor: string }> = {
-  Brand: {
-    gradient: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
-    bgColor: 'bg-blue-100',
-    textColor: 'text-blue-700',
-  },
-  Reseller: {
-    gradient: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
-    bgColor: 'bg-orange-100',
-    textColor: 'text-orange-700',
-  },
-  UGC: {
-    gradient: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
-    bgColor: 'bg-purple-100',
-    textColor: 'text-purple-700',
-  },
-  '3rd Party': {
-    gradient: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-    bgColor: 'bg-emerald-100',
-    textColor: 'text-emerald-700',
-  },
-};
-
 export function InfluentialVoicesTable({
   influentialVoices,
   brandName,
 }: InfluentialVoicesTableProps) {
+  const { getStyles, getDomainTypeNames } = useMarketConfig();
+
   if (influentialVoices.length === 0) {
     return null;
   }
@@ -57,7 +38,7 @@ export function InfluentialVoicesTable({
             Most Influential Voices
             <InfoTooltip
               title="Most Influential Voices"
-              description="Shows the single most dominant domain for each domain type (Brand, Reseller, UGC, 3rd Party) that appears frequently on your branded keywords."
+              description={`Shows the single most dominant domain for each domain type (${getDomainTypeNames().join(', ')}) that appears frequently on your branded keywords.`}
               calculation="For each domain type: Find the domain with the highest number of rankings on your branded keywords, along with their total volume, average position, and #1 wins."
             />
           </h3>
@@ -96,11 +77,7 @@ export function InfluentialVoicesTable({
           </thead>
           <tbody>
             {influentialVoices.map((voice, index) => {
-              const typeStyle = DOMAIN_TYPE_STYLES[voice.domain_type] || {
-                gradient: 'linear-gradient(135deg, #64748B 0%, #475569 100%)',
-                bgColor: 'bg-gray-100',
-                textColor: 'text-gray-700',
-              };
+              const typeStyle = getStyles(voice.domain_type);
 
               return (
                 <motion.tr

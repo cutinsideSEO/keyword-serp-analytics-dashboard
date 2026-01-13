@@ -78,7 +78,7 @@ def load_manual_mappings(file_path: Optional[str]) -> Optional[Dict[str, Dict[st
         return None
 
     try:
-        with open(file_path, "r") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             mappings = json.load(f)
         logger.info(f"Loaded {len(mappings)} manual mappings from {file_path}")
         return mappings

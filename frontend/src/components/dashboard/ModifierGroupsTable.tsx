@@ -174,7 +174,8 @@ export function ModifierGroupsTable({
                         {mg.example_keywords.map((kw, kidx) => (
                           <span
                             key={kidx}
-                            className="text-xs px-2 py-1 rounded-md bg-white text-gray-700 border border-gray-200"
+                            className="text-xs px-2 py-1 rounded-md bg-white text-gray-700 border border-gray-200 keyword-tag"
+                            dir="auto"
                           >
                             {kw}
                           </span>

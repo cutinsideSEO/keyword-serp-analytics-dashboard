@@ -158,7 +158,8 @@ function ExpandedDetails({
                 {mg.example_keywords.slice(0, 5).map((kw, idx) => (
                   <span
                     key={idx}
-                    className="text-xs px-2 py-1 rounded-md bg-white text-gray-700 border border-gray-200"
+                    className="text-xs px-2 py-1 rounded-md bg-white text-gray-700 border border-gray-200 keyword-tag"
+                    dir="auto"
                   >
                     {kw}
                   </span>

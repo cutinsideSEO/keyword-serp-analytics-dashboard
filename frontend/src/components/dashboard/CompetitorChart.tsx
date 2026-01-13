@@ -1,28 +1,23 @@
 /**
  * Modern competitor bar chart with gradient styling.
+ * Uses dynamic domain types from market configuration.
  */
 
 import { motion } from 'framer-motion';
-import { Card, BarChart, Text } from '@tremor/react';
-import { TrendingDown, ExternalLink } from 'lucide-react';
+import { BarChart } from '@tremor/react';
+import { TrendingDown } from 'lucide-react';
 import type { CompetitorStats } from '../../types';
-import { formatCompactNumber, formatNumber } from '../../utils/formatters';
+import { formatCompactNumber } from '../../utils/formatters';
 import { InfoTooltip } from '../common/InfoTooltip';
+import { useMarketConfig } from '../../contexts/MarketConfigContext';
 
 interface CompetitorChartProps {
   competitors: CompetitorStats[];
   brandName: string;
 }
 
-const DOMAIN_TYPE_COLORS: Record<string, string> = {
-  'Brand': 'blue',
-  'Reseller': 'orange',
-  'UGC': 'purple',
-  '3rd Party': 'emerald',
-  'Unknown': 'gray',
-};
-
 export function CompetitorChart({ competitors, brandName }: CompetitorChartProps) {
+  const { getTremorColor } = useMarketConfig();
   // Get unique domain types present in the data
   const domainTypes = Array.from(
     new Set(competitors.map((comp) => comp.domain_type || 'Unknown'))
@@ -41,8 +36,8 @@ export function CompetitorChart({ competitors, brandName }: CompetitorChartProps
     return dataPoint;
   });
 
-  // Map domain types to their colors
-  const chartColors = domainTypes.map((type) => DOMAIN_TYPE_COLORS[type] || 'gray');
+  // Map domain types to their colors from config
+  const chartColors = domainTypes.map((type) => getTremorColor(type));
 
   const totalVolumeStolen = competitors.reduce(
     (sum, comp) => sum + comp.wins_volume,

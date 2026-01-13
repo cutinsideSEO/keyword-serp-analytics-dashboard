@@ -1,37 +1,25 @@
 /**
  * Category Explorer Component
  * Full accordion-style explorer with detailed breakdowns, charts, and visualizations
+ * Uses dynamic domain types from market configuration.
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, Title, Text, BarChart, DonutChart, Grid, ProgressBar } from '@tremor/react';
-import { Layers, ChevronRight, ChevronDown, TrendingUp, Building2, ShoppingCart, MessageCircle, Newspaper, Loader2 } from 'lucide-react';
-import type { CategoryMarketStats, CategoryBreakdown, CategoryValueMarketStats, DomainVisibilityItem } from '../../types';
+import { Layers, ChevronRight, ChevronDown, TrendingUp, Loader2 } from 'lucide-react';
+import type { CategoryMarketStats, CategoryBreakdown, DomainVisibilityItem } from '../../types';
 import { getCategoryMarketBreakdown } from '../../api/endpoints';
+import { useMarketConfig } from '../../contexts/MarketConfigContext';
 
 interface CategoryExplorerProps {
   data: CategoryMarketStats[];
 }
 
-// Domain type icons and colors
-const domainTypeConfig = {
-  Brand: { icon: Building2, color: 'blue', bgColor: 'bg-blue-50', textColor: 'text-blue-700', borderColor: 'border-blue-200' },
-  Reseller: { icon: ShoppingCart, color: 'purple', bgColor: 'bg-purple-50', textColor: 'text-purple-700', borderColor: 'border-purple-200' },
-  UGC: { icon: MessageCircle, color: 'amber', bgColor: 'bg-amber-50', textColor: 'text-amber-700', borderColor: 'border-amber-200' },
-  '3rd Party': { icon: Newspaper, color: 'teal', bgColor: 'bg-teal-50', textColor: 'text-teal-700', borderColor: 'border-teal-200' },
-};
-
-const chartColors = {
-  Brand: '#3b82f6',
-  Reseller: '#8b5cf6',
-  UGC: '#f59e0b',
-  '3rd Party': '#14b8a6',
-};
-
 const ITEMS_PER_PAGE = 12;
 
 export function CategoryExplorer({ data }: CategoryExplorerProps) {
+  const { getStyles, getIcon, hexColorMap, getDomainTypeNames } = useMarketConfig();
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [categoryBreakdowns, setCategoryBreakdowns] = useState<Record<string, CategoryBreakdown>>({});
   const [loadingCategories, setLoadingCategories] = useState<Set<string>>(new Set());
@@ -74,7 +62,7 @@ export function CategoryExplorer({ data }: CategoryExplorerProps) {
   // Prepare donut chart data from top_players_by_type
   const prepareDonutData = (breakdown: CategoryBreakdown) => {
     const data: { name: string; value: number }[] = [];
-    const types = ['Brand', 'Reseller', 'UGC', '3rd Party'];
+    const types = getDomainTypeNames();
 
     types.forEach(type => {
       const players = breakdown.top_players_by_type[type] || [];

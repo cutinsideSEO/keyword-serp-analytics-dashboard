@@ -54,3 +54,31 @@ table {
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out;
 }
+
+/* RTL Support for Hebrew keywords */
+/* Use dir="auto" on elements or these classes for proper text direction */
+
+/* Auto-detect text direction based on content */
+.keyword-text {
+  direction: auto;
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+
+/* Explicit RTL for Hebrew text */
+.text-rtl {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Keyword tags with auto direction */
+.keyword-tag {
+  direction: auto;
+  unicode-bidi: isolate;
+}
+
+/* Table cells with keyword content */
+.keyword-cell {
+  direction: auto;
+  unicode-bidi: plaintext;
+}

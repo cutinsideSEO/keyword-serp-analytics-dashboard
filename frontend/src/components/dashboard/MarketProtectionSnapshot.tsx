@@ -1,12 +1,14 @@
 /**
  * Market Protection Snapshot Component
  * Displays overall brand protection health metrics and loss distribution
+ * Uses dynamic domain types from market configuration.
  */
 
 import { motion } from 'framer-motion';
-import { Card, Title, Text, Grid } from '@tremor/react';
+import { Card, Text, Grid, Title } from '@tremor/react';
 import { Shield, AlertTriangle, TrendingDown, Users, PieChart } from 'lucide-react';
 import type { MarketProtectionKPIs, MarketLossDistribution } from '../../types';
+import { useMarketConfig } from '../../contexts/MarketConfigContext';
 
 interface MarketProtectionSnapshotProps {
   kpis: MarketProtectionKPIs;
@@ -14,6 +16,8 @@ interface MarketProtectionSnapshotProps {
 }
 
 export function MarketProtectionSnapshot({ kpis, lossDistribution }: MarketProtectionSnapshotProps) {
+  const { getStyles } = useMarketConfig();
+
   // Determine market health status
   const getHealthStatus = (avgWinRate: number) => {
     if (avgWinRate >= 50) return { label: 'Healthy', color: 'emerald' };
@@ -23,12 +27,10 @@ export function MarketProtectionSnapshot({ kpis, lossDistribution }: MarketProte
 
   const healthStatus = getHealthStatus(kpis.average_win_rate);
 
-  // Domain type color mapping
-  const domainTypeColors: Record<string, string> = {
-    'Brand': 'text-emerald-600 bg-emerald-50 border-emerald-200',
-    'Reseller': 'text-purple-600 bg-purple-50 border-purple-200',
-    '3rd Party': 'text-blue-600 bg-blue-50 border-blue-200',
-    'UGC': 'text-amber-600 bg-amber-50 border-amber-200',
+  // Helper to get combined class for domain type
+  const getDomainTypeClasses = (domainType: string): string => {
+    const styles = getStyles(domainType);
+    return `${styles.textColor} ${styles.bgColor} ${styles.borderColor}`;
   };
 
   return (
@@ -162,7 +164,7 @@ export function MarketProtectionSnapshot({ kpis, lossDistribution }: MarketProte
             {lossDistribution
               .sort((a, b) => b.percentage_of_losses - a.percentage_of_losses)
               .map((dist, idx) => {
-                const colorClass = domainTypeColors[dist.domain_type] || 'text-gray-600 bg-gray-50 border-gray-200';
+                const colorClass = getDomainTypeClasses(dist.domain_type);
 
                 return (
                   <motion.div

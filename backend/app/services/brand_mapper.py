@@ -6,11 +6,7 @@ Automatically detects which domains belong to which brands using:
 2. Heuristic matching (brand name in domain)
 3. AI analysis for top 1000 domains by visibility
 
-Domain types:
-- Brand: Official brand website
-- Reseller: Multi-brand retailers/aggregators
-- UGC: User-generated content sites
-- 3rd Party: Reviews, content, affiliate sites
+Domain types are configurable per market via market_config.py
 """
 
 import json
@@ -22,11 +18,13 @@ from sqlalchemy import case, distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.market_config import get_market_config
 from app.database import get_db_context
 from app.models import BrandDomain, Category, Domain, Keyword, KeywordTag, SerpResult
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+market_config = get_market_config()
 
 
 class BrandMapperService:
@@ -242,18 +240,110 @@ class BrandMapperService:
                 is_primary = domain_clean.startswith(brand_lower)
                 confidence = 0.95 if is_primary else 0.85
 
+                # Get the brand type name from market config
+                brand_type = market_config.get_brand_type()
+                brand_type_name = brand_type.display_name if brand_type else "Brand"
+
                 mappings.append(
                     {
                         "domain": domain_info["domain"],
                         "brand_name": brand_name,
                         "is_primary": is_primary and len(mappings) == 0,
-                        "domain_type": "Brand",
+                        "domain_type": brand_type_name,
                         "confidence": confidence,
                         "reason": "Brand name contained in domain",
                     }
                 )
 
         return mappings
+
+    def _generate_classification_prompt(
+        self, domains: List[Dict[str, Any]], brands: List[str]
+    ) -> str:
+        """
+        Generate a dynamic classification prompt based on market config.
+
+        Args:
+            domains: List of domain statistics
+            brands: List of known brand names
+
+        Returns:
+            Formatted prompt string for Claude
+        """
+        # Prepare domain info
+        domain_info = "\n".join(
+            [
+                f"{i+1}. {d['domain']} (visibility: {d.get('visibility', 0)}, "
+                f"{d.get('keyword_count', 0)} keywords)"
+                for i, d in enumerate(domains[:50])  # Limit to 50 for prompt size
+            ]
+        )
+
+        brands_list = ", ".join(brands[:30])  # Include brand context
+
+        # Build domain type descriptions from config
+        type_descriptions = "\n".join(
+            [
+                f"   - {dt.display_name}: {dt.ai_description}"
+                for dt in market_config.domain_types
+            ]
+        )
+
+        # Build example JSON entries
+        brand_type = market_config.get_brand_type()
+        brand_type_name = brand_type.display_name if brand_type else "Brand"
+
+        examples = []
+        for dt in market_config.domain_types:
+            if dt.examples:
+                example_domain = dt.examples[0]
+                if dt.is_brand_type:
+                    examples.append(
+                        f'{{"domain": "{example_domain}", "brand_name": "{brands[0] if brands else "ExampleBrand"}", '
+                        f'"domain_type": "{dt.display_name}", "is_primary": true, "confidence": 0.98}}'
+                    )
+                else:
+                    examples.append(
+                        f'{{"domain": "{example_domain}", "brand_name": "N/A", '
+                        f'"domain_type": "{dt.display_name}", "is_primary": false, "confidence": 0.95}}'
+                    )
+
+        examples_json = ",\n        ".join(examples)
+
+        # Build list of valid domain types
+        type_list = ", ".join(market_config.get_domain_type_names())
+
+        prompt = f"""Analyze these domains in the {market_config.industry_context} and classify each one.
+
+Known brands: {brands_list}
+
+Domains to classify:
+{domain_info}
+
+For EACH domain, determine:
+1. Domain Type (choose one):
+{type_descriptions}
+
+2. Associated Brand (if type is "{brand_type_name}", specify which brand owns it; otherwise use "N/A")
+
+3. Confidence (0.0 to 1.0)
+
+Respond in this exact JSON format:
+{{
+    "mappings": [
+        {examples_json}
+    ]
+}}
+
+Rules:
+- ONLY use domain_type values: {type_list}
+- brand_name should be exact brand name from the list, or "N/A" for non-{brand_type_name} types
+- is_primary is true only for the main website of a brand
+- Classify ALL provided domains
+
+Respond only with valid JSON, no other text."""
+
+        return prompt
 
     def _call_claude_for_mapping(
         self, domains: List[Dict[str, Any]], brands: List[str]
@@ -271,52 +361,8 @@ class BrandMapperService:
         if not self.client or not domains:
             return []
 
-        # Prepare domain info
-        domain_info = "\n".join(
-            [
-                f"{i+1}. {d['domain']} (visibility: {d.get('visibility', 0)}, "
-                f"{d.get('keyword_count', 0)} keywords)"
-                for i, d in enumerate(domains[:50])  # Limit to 50 for prompt size
-            ]
-        )
-
-        brands_list = ", ".join(brands[:30])  # Include brand context
-
-        prompt = f"""Analyze these domains in the bicycle/cycling industry and classify each one.
-
-Known brands: {brands_list}
-
-Domains to classify:
-{domain_info}
-
-For EACH domain, determine:
-1. Domain Type (choose one):
-   - Brand: Official brand website selling their own products (e.g., trekbikes.com for Trek)
-   - Reseller: Multi-brand retailers/aggregators (e.g., Amazon, Walmart, performancebike.com)
-   - UGC: User-generated content sites (Reddit, Facebook, bikeforums.net, forums.mtbr.com)
-   - 3rd Party: Reviews, content, news, or affiliate sites (bikeradar.com, cyclingnews.com)
-
-2. Associated Brand (if type is "Brand", specify which brand owns it; otherwise use "N/A")
-
-3. Confidence (0.0 to 1.0)
-
-Respond in this exact JSON format:
-{{
-    "mappings": [
-        {{"domain": "trekbikes.com", "brand_name": "Trek", "domain_type": "Brand", "is_primary": true, "confidence": 0.98}},
-        {{"domain": "amazon.com", "brand_name": "N/A", "domain_type": "Reseller", "is_primary": false, "confidence": 0.99}},
-        {{"domain": "reddit.com", "brand_name": "N/A", "domain_type": "UGC", "is_primary": false, "confidence": 0.99}},
-        {{"domain": "bikeradar.com", "brand_name": "N/A", "domain_type": "3rd Party", "is_primary": false, "confidence": 0.95}}
-    ]
-}}
-
-Rules:
-- ONLY use domain_type values: Brand, Reseller, UGC, 3rd Party
-- brand_name should be exact brand name from the list, or "N/A" for non-Brand types
-- is_primary is true only for the main website of a brand
-- Classify ALL provided domains
-
-Respond only with valid JSON, no other text."""
+        # Generate dynamic prompt based on market config
+        prompt = self._generate_classification_prompt(domains, brands)
 
         try:
             response = self.client.messages.create(
@@ -336,8 +382,10 @@ Respond only with valid JSON, no other text."""
             mappings = result.get("mappings", [])
 
             # Filter out N/A brand names for non-Brand types
+            brand_type = market_config.get_brand_type()
+            brand_type_name = brand_type.display_name if brand_type else "Brand"
             for mapping in mappings:
-                if mapping.get("domain_type") != "Brand":
+                if mapping.get("domain_type") != brand_type_name:
                     mapping["brand_name"] = "N/A"
 
             return mappings
@@ -389,12 +437,16 @@ Respond only with valid JSON, no other text."""
                 logger.info(f"Mapping already exists: {brand_name} -> {domain_str}")
                 continue
 
+            # Get default domain type from config
+            brand_type = market_config.get_brand_type()
+            default_type = brand_type.display_name if brand_type else "Brand"
+
             # Create new mapping
             brand_domain = BrandDomain(
                 brand_name=brand_name,
                 domain_id=domain.id,
                 is_primary=mapping_info.get("is_primary", False),
-                domain_type=mapping_info.get("domain_type", "Brand"),
+                domain_type=mapping_info.get("domain_type", default_type),
                 confidence=mapping_info.get("confidence", 1.0),
             )
             self.session.add(brand_domain)
@@ -417,6 +469,10 @@ Respond only with valid JSON, no other text."""
             Number of mappings saved
         """
         saved_count = 0
+
+        # Get default domain type from config
+        brand_type = market_config.get_brand_type()
+        default_type = brand_type.display_name if brand_type else "Brand"
 
         for mapping in mappings:
             domain_str = mapping["domain"]
@@ -448,7 +504,7 @@ Respond only with valid JSON, no other text."""
                 brand_name=brand_name,
                 domain_id=domain.id,
                 is_primary=mapping.get("is_primary", False),
-                domain_type=mapping.get("domain_type", "Brand"),
+                domain_type=mapping.get("domain_type", default_type),
                 confidence=mapping.get("confidence", 0.5),
             )
             self.session.add(brand_domain)

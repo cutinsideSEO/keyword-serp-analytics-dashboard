@@ -107,7 +107,8 @@ export function CategoryBreakdown({ categories, brandName }: CategoryBreakdownPr
                         {category.example_keywords.map((kw, idx) => (
                           <span
                             key={idx}
-                            className="text-xs px-2 py-1 rounded-md bg-amber-50 text-amber-700 border border-amber-200"
+                            className="text-xs px-2 py-1 rounded-md bg-amber-50 text-amber-700 border border-amber-200 keyword-tag"
+                            dir="auto"
                           >
                             {kw}
                           </span>

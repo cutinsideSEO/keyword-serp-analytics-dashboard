@@ -14,7 +14,7 @@ from starlette.responses import Response
 
 from app.config import get_settings
 from app.database import close_db, init_db
-from app.routers import brands_router, dashboard_router, keywords_router, market_overview_router
+from app.routers import brands_router, config_router, dashboard_router, keywords_router, market_overview_router
 from app.schemas import HealthResponse
 
 
@@ -82,6 +82,7 @@ app.add_middleware(NoCacheMiddleware)
 
 # Include routers
 app.include_router(brands_router, prefix="/api")
+app.include_router(config_router, prefix="/api")
 app.include_router(keywords_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
 app.include_router(market_overview_router, prefix="/api")

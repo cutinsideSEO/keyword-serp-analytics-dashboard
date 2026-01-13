@@ -129,15 +129,16 @@ export function WinLossTable({ wins, losses }: WinLossTableProps) {
                         key={`${win.keyword}-${index}`}
                         className="border-b border-gray-100 hover:bg-emerald-50 transition-colors"
                       >
-                        <td className="py-4 px-4">
+                        <td className="py-4 px-4 keyword-cell">
                           <a
                             href={win.url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="font-semibold text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-2 group"
+                            dir="auto"
                           >
-                            {truncate(win.keyword, 50)}
-                            <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <span className="keyword-text">{truncate(win.keyword, 50)}</span>
+                            <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                           </a>
                         </td>
                         <td className="py-4 px-4 text-right">
@@ -243,8 +244,8 @@ export function WinLossTable({ wins, losses }: WinLossTableProps) {
                         key={`${loss.keyword}-${index}`}
                         className="border-b border-gray-100 hover:bg-red-50 transition-colors"
                       >
-                        <td className="py-4 px-4">
-                          <span className="font-semibold text-gray-900">
+                        <td className="py-4 px-4 keyword-cell">
+                          <span className="font-semibold text-gray-900 keyword-text" dir="auto">
                             {truncate(loss.keyword, 50)}
                           </span>
                         </td>

@@ -1,42 +1,31 @@
 /**
  * Modern domain types donut chart with gradient styling.
+ * Uses dynamic domain types from market configuration.
  */
 
 import { motion } from 'framer-motion';
 import { DonutChart } from '@tremor/react';
 import { Layers, TrendingDown } from 'lucide-react';
 import type { DomainTypeLossStats } from '../../types';
-import { formatCompactNumber, formatNumber } from '../../utils/formatters';
+import { formatCompactNumber } from '../../utils/formatters';
 import { InfoTooltip } from '../common/InfoTooltip';
+import { useMarketConfig } from '../../contexts/MarketConfigContext';
 
 interface DomainTypesChartProps {
   domainTypes: DomainTypeLossStats[];
   brandName: string;
 }
 
-const DOMAIN_TYPE_COLORS: Record<string, string> = {
-  'Brand': 'blue',
-  'Reseller': 'orange',
-  'UGC': 'purple',
-  '3rd Party': 'emerald',
-};
-
-const DOMAIN_TYPE_GRADIENTS: Record<string, string> = {
-  'Brand': 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
-  'Reseller': 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
-  'UGC': 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
-  '3rd Party': 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-};
-
 export function DomainTypesChart({ domainTypes, brandName }: DomainTypesChartProps) {
+  const { getTremorColor, getGradient, getDomainTypeNames } = useMarketConfig();
   // Prepare data for the donut chart
   const chartData = domainTypes.map((dt) => ({
     name: dt.domain_type,
     value: dt.loss_volume,
   }));
 
-  // Map each domain type to its corresponding color
-  const chartColors = domainTypes.map((dt) => DOMAIN_TYPE_COLORS[dt.domain_type] || 'gray');
+  // Map each domain type to its corresponding color from config
+  const chartColors = domainTypes.map((dt) => getTremorColor(dt.domain_type));
 
   const totalVolume = domainTypes.reduce((sum, dt) => sum + dt.loss_volume, 0);
 
@@ -54,7 +43,7 @@ export function DomainTypesChart({ domainTypes, brandName }: DomainTypesChartPro
               Loss Distribution
               <InfoTooltip
                 title="Loss Distribution by Domain Type"
-                description={`This breaks down the search volume you're losing by domain type. Domain types are classified as: Brand (other brand sites), Reseller (Amazon, Walmart, etc.), UGC (Reddit, forums), and 3rd Party (review sites, affiliates).`}
+                description={`This breaks down the search volume you're losing by domain type. Domain types: ${getDomainTypeNames().join(', ')}.`}
                 calculation="For each domain type: Sum the search volume of all keywords where domains of that type rank #1 (and you don't). 'Total Lost' = Sum of all lost volume across all domain types."
               />
             </h3>
@@ -99,7 +88,7 @@ export function DomainTypesChart({ domainTypes, brandName }: DomainTypesChartPro
             >
               <div
                 className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ background: DOMAIN_TYPE_GRADIENTS[dt.domain_type] || '#64748B' }}
+                style={{ background: getGradient(dt.domain_type) }}
               >
                 <Layers className="w-5 h-5 text-white" />
               </div>

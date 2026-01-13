@@ -2,6 +2,7 @@
 Market Overview API endpoints.
 
 Provides endpoints for market-wide analytics dashboard.
+Domain types are configurable per market via market_config.py
 """
 
 from typing import List
@@ -9,6 +10,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.market_config import get_market_config
 from app.database import get_db
 from app.schemas import (
     MarketOverviewDashboard,
@@ -25,6 +27,9 @@ from app.schemas import (
 from app.services.market_analytics import MarketAnalyticsService
 
 router = APIRouter(prefix="/dashboard/market-overview", tags=["market-overview"])
+
+# Get market configuration
+market_config = get_market_config()
 
 
 @router.get("", response_model=MarketOverviewDashboard)
@@ -70,7 +75,8 @@ async def get_top_retailers(
     db: AsyncSession = Depends(get_db),
 ) -> List[DomainVisibilityItem]:
     """
-    Get top retailers by visibility score.
+    Get top retailers/comparison sites by visibility score.
+    Uses first non-brand domain type from market config.
 
     Args:
         limit: Maximum retailers to return
@@ -80,7 +86,12 @@ async def get_top_retailers(
         List of top retailers with visibility metrics
     """
     service = MarketAnalyticsService(db)
-    return await service.get_domain_visibility_by_type("Reseller", limit)
+
+    # Get first non-brand type (e.g., Comparison Site, Reseller)
+    non_brand_types = market_config.get_non_brand_type_names()
+    retailer_type = non_brand_types[0] if non_brand_types else "Reseller"
+
+    return await service.get_domain_visibility_by_type(retailer_type, limit)
 
 
 @router.get("/influential-voices", response_model=List[DomainVisibilityItem])
@@ -90,7 +101,7 @@ async def get_influential_voices(
 ) -> List[DomainVisibilityItem]:
     """
     Get top UGC and 3rd Party domains by visibility.
-    Combines both types and returns top by visibility score.
+    Uses remaining non-brand domain types from market config.
 
     Args:
         limit: Maximum domains to return
@@ -101,12 +112,17 @@ async def get_influential_voices(
     """
     service = MarketAnalyticsService(db)
 
-    # Get both types
-    ugc = await service.get_domain_visibility_by_type("UGC", limit // 2 + 1)
-    third_party = await service.get_domain_visibility_by_type("3rd Party", limit // 2 + 1)
+    # Get remaining non-brand types (excluding first which is "retailers")
+    non_brand_types = market_config.get_non_brand_type_names()
+    voice_types = non_brand_types[1:] if len(non_brand_types) > 1 else []
 
-    # Merge and sort by visibility
-    combined = ugc + third_party
+    # Fetch and combine all voice types
+    combined = []
+    for voice_type in voice_types:
+        voices = await service.get_domain_visibility_by_type(voice_type, limit)
+        combined.extend(voices)
+
+    # Sort by visibility and limit
     combined.sort(key=lambda x: x.visibility_score, reverse=True)
 
     return combined[:limit]
