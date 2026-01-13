@@ -31,6 +31,7 @@ from app.schemas import (
     CategoryProtectionBreakdown,
     CategoryValueLossStats,
     CategoryValueProtectionStats,
+    CompetitorBrandedDashboard,
     CompetitorStats,
     DomainTypeLossDetail,
     DomainTypeLossStats,
@@ -38,9 +39,12 @@ from app.schemas import (
     ExampleWinnerKeyword,
     InfluentialDomain,
     ModifierGroupOpportunity,
+    ModifierGroupOpportunityBreakdown,
     ModifierGroupProtectionBreakdown,
     ModifierGroupStats,
+    OpportunityCategoryValue,
     OpportunityCompetitor,
+    OpportunityKeywordDetail,
     TagProtectionStats,
 )
 
@@ -170,6 +174,7 @@ class AnalyticsService:
                 SerpResult.keyword_id.in_(branded_keyword_ids),
                 SerpResult.domain_id.in_(brand_domain_ids),
                 SerpResult.rank_group == 1,
+                SerpResult.result_type == 'organic',
             )
         )
 
@@ -226,6 +231,7 @@ class AnalyticsService:
                 SerpResult.keyword_id.in_(branded_keyword_ids),
                 SerpResult.domain_id.in_(brand_domain_ids),
                 SerpResult.rank_group == 1,
+                SerpResult.result_type == 'organic',
             )
         )
         result = await self.session.execute(count_query)
@@ -246,6 +252,7 @@ class AnalyticsService:
                 SerpResult.keyword_id.in_(branded_keyword_ids),
                 SerpResult.domain_id.in_(brand_domain_ids),
                 SerpResult.rank_group == 1,
+                SerpResult.result_type == 'organic',
             )
             .order_by(Keyword.volume.desc())
             .limit(limit)
@@ -317,6 +324,7 @@ class AnalyticsService:
                     SerpResult.keyword_id.in_(branded_keyword_ids),
                     SerpResult.domain_id.in_(brand_domain_ids),
                     SerpResult.rank_group == 1,
+                    SerpResult.result_type == 'organic',
                 )
             )
 
@@ -357,6 +365,7 @@ class AnalyticsService:
             .join(SerpResult, and_(
                 SerpResult.keyword_id == Keyword.id,
                 SerpResult.rank_group == 1,
+                SerpResult.result_type == 'organic',
             ))
             .join(Domain, SerpResult.domain_id == Domain.id)
             .order_by(Keyword.volume.desc())
@@ -380,6 +389,7 @@ class AnalyticsService:
                     .where(
                         SerpResult.keyword_id == keyword_id,
                         SerpResult.domain_id.in_(brand_domain_ids),
+                        SerpResult.result_type == 'organic',
                     )
                     .order_by(SerpResult.rank_group)
                     .limit(1)
@@ -456,6 +466,7 @@ class AnalyticsService:
             .where(
                 SerpResult.keyword_id.in_(branded_keyword_ids),
                 SerpResult.rank_group == 1,
+                SerpResult.result_type == 'organic',
             )
         )
 
@@ -515,6 +526,7 @@ class AnalyticsService:
                     SerpResult.keyword_id.in_(branded_keyword_ids),
                     SerpResult.domain_id.in_(brand_domain_ids),
                     SerpResult.rank_group == 1,
+                    SerpResult.result_type == 'organic',
                 )
             )
             losses_subq = (
@@ -614,6 +626,7 @@ class AnalyticsService:
                     SerpResult.keyword_id.in_(branded_keyword_ids),
                     SerpResult.domain_id.in_(brand_domain_ids),
                     SerpResult.rank_group == 1,
+                    SerpResult.result_type == 'organic',
                 )
             )
             losses_subq = (
@@ -705,6 +718,7 @@ class AnalyticsService:
                     SerpResult.keyword_id.in_(branded_keyword_ids),
                     SerpResult.domain_id.in_(brand_domain_ids),
                     SerpResult.rank_group == 1,
+                    SerpResult.result_type == 'organic',
                 )
             )
             losses_keywords = (
@@ -735,7 +749,7 @@ class AnalyticsService:
             .select_from(SerpResult)
             .join(losses_keywords, SerpResult.keyword_id == losses_keywords.c.id)
             .join(BrandDomain, SerpResult.domain_id == BrandDomain.domain_id)
-            .where(SerpResult.rank_group == 1)  # Only the #1 ranked competitor
+            .where(SerpResult.rank_group == 1, SerpResult.result_type == 'organic')  # Only the #1 ranked organic competitor
             .group_by(BrandDomain.domain_type)
             .order_by(func.sum(losses_keywords.c.volume).desc())
         )
@@ -788,7 +802,7 @@ class AnalyticsService:
                 func.sum(Keyword.volume).label("ranking_volume"),
                 func.avg(SerpResult.rank_group).label("avg_position"),
                 func.count(
-                    case((SerpResult.rank_group == 1, 1))
+                    case((and_(SerpResult.rank_group == 1, SerpResult.result_type == 'organic'), 1))
                 ).label("win_count"),
             )
             .select_from(SerpResult)
@@ -797,6 +811,7 @@ class AnalyticsService:
             .join(BrandDomain, SerpResult.domain_id == BrandDomain.domain_id)
             .where(
                 SerpResult.keyword_id.in_(branded_keyword_ids),
+                SerpResult.result_type == 'organic',
             )
         )
 
@@ -886,17 +901,19 @@ class AnalyticsService:
                     SerpResult.keyword_id.in_(branded_keyword_ids),
                     SerpResult.domain_id.in_(brand_domain_ids),
                     SerpResult.rank_group == 1,
+                    SerpResult.result_type == 'organic',
                 )
             )
             wins_result = await self.session.execute(wins_query)
             winning_keyword_ids = {row[0] for row in wins_result.all()}
 
-            # Get brand positions for all branded keywords
+            # Get brand positions for all branded keywords (organic only)
             positions_query = (
                 select(SerpResult.keyword_id, SerpResult.rank_group)
                 .where(
                     SerpResult.keyword_id.in_(branded_keyword_ids),
                     SerpResult.domain_id.in_(brand_domain_ids),
+                    SerpResult.result_type == 'organic',
                 )
             )
             positions_result = await self.session.execute(positions_query)
@@ -1047,6 +1064,7 @@ class AnalyticsService:
                     SerpResult.keyword_id.in_(category_keyword_ids),
                     SerpResult.domain_id.in_(brand_domain_ids),
                     SerpResult.rank_group == 1,
+                    SerpResult.result_type == 'organic',
                 )
             )
             wins_result = await self.session.execute(wins_query)
@@ -1072,13 +1090,14 @@ class AnalyticsService:
 
         win_rate = round(100 * keywords_winning / total_keywords, 1) if total_keywords > 0 else 0.0
 
-        # Get average brand position
+        # Get average brand position (organic only)
         if brand_domain_ids:
             avg_pos_query = (
                 select(func.avg(SerpResult.rank_group))
                 .where(
                     SerpResult.keyword_id.in_(category_keyword_ids),
                     SerpResult.domain_id.in_(brand_domain_ids),
+                    SerpResult.result_type == 'organic',
                 )
             )
             avg_pos_result = await self.session.execute(avg_pos_query)
@@ -1177,6 +1196,7 @@ class AnalyticsService:
                     .join(SerpResult, and_(
                         SerpResult.keyword_id == Keyword.id,
                         SerpResult.rank_group == 1,
+                        SerpResult.result_type == 'organic',
                     ))
                     .where(
                         Keyword.id.in_(value_winning_ids),
@@ -1203,6 +1223,7 @@ class AnalyticsService:
                     .join(SerpResult, and_(
                         SerpResult.keyword_id == Keyword.id,
                         SerpResult.rank_group == 1,
+                        SerpResult.result_type == 'organic',
                     ))
                     .join(Domain, SerpResult.domain_id == Domain.id)
                     .where(Keyword.id.in_(losing_value_ids))
@@ -1252,6 +1273,7 @@ class AnalyticsService:
                 .where(
                     SerpResult.keyword_id.in_(losing_keyword_ids),
                     SerpResult.rank_group == 1,
+                    SerpResult.result_type == 'organic',
                 )
             )
             if brand_domain_ids:
@@ -1293,6 +1315,7 @@ class AnalyticsService:
                 .where(
                     SerpResult.keyword_id.in_(losing_keyword_ids),
                     SerpResult.rank_group == 1,
+                    SerpResult.result_type == 'organic',
                 )
                 .group_by(BrandDomain.domain_type)
                 .order_by(func.sum(Keyword.volume).desc())
@@ -1389,6 +1412,7 @@ class AnalyticsService:
                     SerpResult.keyword_id.in_(mg_keyword_ids),
                     SerpResult.domain_id.in_(brand_domain_ids),
                     SerpResult.rank_group == 1,
+                    SerpResult.result_type == 'organic',
                 )
             )
             wins_result = await self.session.execute(wins_query)
@@ -1413,13 +1437,14 @@ class AnalyticsService:
 
         win_rate = round(100 * keywords_winning / total_keywords, 1) if total_keywords > 0 else 0.0
 
-        # Get average brand position
+        # Get average brand position (organic only)
         if brand_domain_ids:
             avg_pos_query = (
                 select(func.avg(SerpResult.rank_group))
                 .where(
                     SerpResult.keyword_id.in_(mg_keyword_ids),
                     SerpResult.domain_id.in_(brand_domain_ids),
+                    SerpResult.result_type == 'organic',
                 )
             )
             avg_pos_result = await self.session.execute(avg_pos_query)
@@ -1495,6 +1520,7 @@ class AnalyticsService:
                 .where(
                     SerpResult.keyword_id.in_(losing_keyword_ids),
                     SerpResult.rank_group == 1,
+                    SerpResult.result_type == 'organic',
                 )
             )
             if brand_domain_ids:
@@ -1536,6 +1562,7 @@ class AnalyticsService:
                 .where(
                     SerpResult.keyword_id.in_(losing_keyword_ids),
                     SerpResult.rank_group == 1,
+                    SerpResult.result_type == 'organic',
                 )
                 .group_by(BrandDomain.domain_type)
                 .order_by(func.sum(Keyword.volume).desc())
@@ -1560,6 +1587,7 @@ class AnalyticsService:
                 .join(SerpResult, and_(
                     SerpResult.keyword_id == Keyword.id,
                     SerpResult.rank_group == 1,
+                    SerpResult.result_type == 'organic',
                     SerpResult.domain_id.in_(brand_domain_ids),
                 ))
                 .where(Keyword.id.in_(winning_keyword_ids))
@@ -1583,6 +1611,7 @@ class AnalyticsService:
                 .join(SerpResult, and_(
                     SerpResult.keyword_id == Keyword.id,
                     SerpResult.rank_group == 1,
+                    SerpResult.result_type == 'organic',
                 ))
                 .join(Domain, SerpResult.domain_id == Domain.id)
                 .where(Keyword.id.in_(losing_keyword_ids))
@@ -1810,6 +1839,7 @@ class AnalyticsService:
             .where(
                 SerpResult.domain_id.in_(brand_domain_ids),
                 SerpResult.rank_group == 1,
+                SerpResult.result_type == 'organic',
             )
         )
         result = await self.session.execute(captured_query)
@@ -1891,11 +1921,12 @@ class AnalyticsService:
                 .where(
                     SerpResult.domain_id.in_(brand_domain_ids),
                     SerpResult.rank_group == 1,
+                    SerpResult.result_type == 'organic',
                 )
             )
             captured_keyword_ids = {row[0] for row in result.all()}
 
-        # Get brand's average position on non-branded keywords using JOIN
+        # Get brand's average position on non-branded keywords using JOIN (organic only)
         brand_positions: Dict[int, float] = {}
         if brand_domain_ids:
             result = await self.session.execute(
@@ -1904,6 +1935,7 @@ class AnalyticsService:
                 .join(nonbranded_subq, SerpResult.keyword_id == nonbranded_subq.c.id)
                 .where(
                     SerpResult.domain_id.in_(brand_domain_ids),
+                    SerpResult.result_type == 'organic',
                 )
                 .group_by(SerpResult.keyword_id)
             )
@@ -2100,6 +2132,7 @@ class AnalyticsService:
             .where(
                 SerpResult.keyword_id.in_(keyword_ids),
                 SerpResult.rank_group == 1,
+                SerpResult.result_type == 'organic',
             )
         )
 
@@ -2207,3 +2240,516 @@ class AnalyticsService:
 
         result = await self.session.execute(query)
         return {f"{row[0]}:{row[1]}": row[2] for row in result.all()}
+
+    # =========================================================================
+    # Competitor Branded Opportunities Methods
+    # =========================================================================
+
+    def _get_competitor_branded_keywords_subquery(self, brand_category_id: int, brand_name: str):
+        """
+        Get a subquery that selects keywords tagged with competitor brands.
+
+        These are keywords that have a brand tag but NOT the selected brand.
+        This allows analyzing opportunities on competitor-branded keywords.
+
+        Args:
+            brand_category_id: The category ID for 'brand' tags
+            brand_name: The selected brand name (to exclude)
+
+        Returns:
+            SQLAlchemy subquery selecting keyword IDs with competitor brand tags
+        """
+        return select(KeywordTag.keyword_id.label("id")).where(
+            KeywordTag.category_id == brand_category_id,
+            KeywordTag.value != brand_name  # Competitor brands only
+        ).distinct().subquery("competitor_branded_keywords")
+
+    async def get_competitor_branded_opportunities(
+        self, brand_name: str, limit_competitors: int = 5
+    ) -> CompetitorBrandedDashboard:
+        """
+        Get opportunities on competitor branded keywords.
+
+        Analyzes keywords that have brand tags but NOT the selected brand,
+        showing where the brand can capture traffic on competitor keywords.
+
+        Args:
+            brand_name: Brand to analyze
+            limit_competitors: Max competitors per modifier group
+
+        Returns:
+            CompetitorBrandedDashboard with opportunities
+        """
+        brand_category_id = await self._get_brand_category_id()
+
+        # Get brand's domain IDs
+        brand_domain_ids = await self._get_brand_domains(brand_name)
+        brand_domains = []
+        if brand_domain_ids:
+            result = await self.session.execute(
+                select(Domain.domain).where(Domain.id.in_(brand_domain_ids))
+            )
+            brand_domains = [row[0] for row in result.all()]
+
+        # Get competitor branded keywords subquery
+        competitor_subq = self._get_competitor_branded_keywords_subquery(
+            brand_category_id, brand_name
+        )
+
+        # Get list of competitor brands
+        competitor_brands_result = await self.session.execute(
+            select(KeywordTag.value)
+            .select_from(KeywordTag)
+            .join(competitor_subq, KeywordTag.keyword_id == competitor_subq.c.id)
+            .where(KeywordTag.category_id == brand_category_id)
+            .group_by(KeywordTag.value)
+            .order_by(func.count().desc())
+            .limit(50)
+        )
+        competitor_brands = [row[0] for row in competitor_brands_result.all()]
+
+        # Check if we have any competitor branded keywords
+        count_result = await self.session.execute(
+            select(func.count()).select_from(competitor_subq)
+        )
+        total_competitor_branded = count_result.scalar() or 0
+
+        if total_competitor_branded == 0:
+            return CompetitorBrandedDashboard(
+                brand_name=brand_name,
+                brand_domains=brand_domains,
+                competitor_brands=[],
+                kpis=CategoryOpportunityKPIs(),
+                modifier_groups=[],
+            )
+
+        # Calculate KPIs (reuse the same logic as non-branded)
+        kpis = await self._calculate_opportunity_kpis(
+            competitor_subq, brand_domain_ids, brand_category_id
+        )
+
+        # Get modifier group opportunities (reuse the same logic)
+        modifier_groups = await self._get_modifier_group_opportunities(
+            competitor_subq, brand_domain_ids, brand_category_id, limit_competitors
+        )
+
+        # Update KPIs with biggest opportunity
+        if modifier_groups:
+            biggest = max(modifier_groups, key=lambda x: x.volume_uncaptured)
+            kpis.biggest_opportunity_group = biggest.modifier_group
+            kpis.biggest_opportunity_volume = biggest.volume_uncaptured
+
+        return CompetitorBrandedDashboard(
+            brand_name=brand_name,
+            brand_domains=brand_domains,
+            competitor_brands=competitor_brands,
+            kpis=kpis,
+            modifier_groups=modifier_groups,
+        )
+
+    async def get_modifier_group_opportunity_breakdown(
+        self,
+        brand_name: str,
+        modifier_group: str,
+        keyword_type: str,
+        limit_values: int = 10,
+        limit_keywords: int = 10,
+    ) -> ModifierGroupOpportunityBreakdown:
+        """
+        Get detailed breakdown for a modifier group (lazy loaded on expand).
+
+        Args:
+            brand_name: Brand to analyze
+            modifier_group: The modifier group to break down
+            keyword_type: 'nonbranded' or 'competitor_branded'
+            limit_values: Max category values to return
+            limit_keywords: Max example keywords per section
+
+        Returns:
+            ModifierGroupOpportunityBreakdown with full details
+        """
+        brand_category_id = await self._get_brand_category_id()
+        brand_domain_ids = await self._get_brand_domains(brand_name)
+
+        # Get the appropriate keyword subquery based on type
+        if keyword_type == "competitor_branded":
+            keyword_subq = self._get_competitor_branded_keywords_subquery(
+                brand_category_id, brand_name
+            )
+        else:
+            keyword_subq = self._get_nonbranded_keywords_subquery(brand_category_id)
+
+        # Get keywords for this modifier group
+        mg_filter = (
+            Keyword.modifier_group == modifier_group
+            if modifier_group != "No Modifier Group"
+            else Keyword.modifier_group.is_(None)
+        )
+
+        result = await self.session.execute(
+            select(Keyword.id, Keyword.keyword, Keyword.volume)
+            .select_from(Keyword)
+            .join(keyword_subq, Keyword.id == keyword_subq.c.id)
+            .where(mg_filter)
+        )
+        keyword_data = [(row[0], row[1], row[2]) for row in result.all()]
+
+        if not keyword_data:
+            return ModifierGroupOpportunityBreakdown(modifier_group=modifier_group)
+
+        keyword_ids = [kw[0] for kw in keyword_data]
+        total_keywords = len(keyword_ids)
+        total_volume = sum(kw[2] for kw in keyword_data)
+
+        # Get captured keyword IDs
+        captured_ids = set()
+        if brand_domain_ids:
+            result = await self.session.execute(
+                select(SerpResult.keyword_id)
+                .where(
+                    SerpResult.keyword_id.in_(keyword_ids),
+                    SerpResult.domain_id.in_(brand_domain_ids),
+                    SerpResult.rank_group == 1,
+                    SerpResult.result_type == 'organic',
+                )
+            )
+            captured_ids = {row[0] for row in result.all()}
+
+        keywords_captured = len(captured_ids)
+        volume_captured = sum(kw[2] for kw in keyword_data if kw[0] in captured_ids)
+        capture_rate = round(100 * keywords_captured / total_keywords, 1) if total_keywords > 0 else 0.0
+
+        # Get brand's average position (organic only)
+        avg_brand_position = None
+        if brand_domain_ids:
+            result = await self.session.execute(
+                select(func.avg(SerpResult.rank_group))
+                .where(
+                    SerpResult.keyword_id.in_(keyword_ids),
+                    SerpResult.domain_id.in_(brand_domain_ids),
+                    SerpResult.result_type == 'organic',
+                )
+            )
+            avg_pos = result.scalar()
+            if avg_pos:
+                avg_brand_position = round(avg_pos, 1)
+
+        # Get top category values with stats
+        top_values = await self._get_opportunity_category_values(
+            keyword_ids, brand_domain_ids, brand_category_id, limit_values, limit_keywords
+        )
+
+        # Get competitors by type
+        competitors_by_type = await self._get_opportunity_competitors_by_type(
+            keyword_ids, brand_domain_ids
+        )
+
+        # Get detailed example keywords
+        example_keywords = await self._get_detailed_example_keywords(
+            keyword_ids, brand_domain_ids, limit_keywords
+        )
+
+        return ModifierGroupOpportunityBreakdown(
+            modifier_group=modifier_group,
+            total_keywords=total_keywords,
+            total_volume=total_volume,
+            keywords_captured=keywords_captured,
+            volume_captured=volume_captured,
+            capture_rate=capture_rate,
+            avg_brand_position=avg_brand_position,
+            top_values=top_values,
+            competitors_by_type=competitors_by_type,
+            example_keywords=example_keywords,
+        )
+
+    async def _get_opportunity_category_values(
+        self,
+        keyword_ids: List[int],
+        brand_domain_ids: List[int],
+        brand_category_id: int,
+        limit_values: int = 10,
+        limit_keywords: int = 5,
+    ) -> List[OpportunityCategoryValue]:
+        """
+        Get top category values with capture stats for an opportunity breakdown.
+
+        Args:
+            keyword_ids: Keywords to analyze
+            brand_domain_ids: Brand's domain IDs
+            brand_category_id: Brand category ID (to exclude)
+            limit_values: Max values to return
+            limit_keywords: Max example keywords per value
+
+        Returns:
+            List of OpportunityCategoryValue
+        """
+        if not keyword_ids:
+            return []
+
+        # Get tags for these keywords (excluding brand category)
+        CHUNK_SIZE = 800
+        value_stats: Dict[str, Dict[str, Any]] = {}
+
+        for i in range(0, len(keyword_ids), CHUNK_SIZE):
+            chunk = keyword_ids[i:i + CHUNK_SIZE]
+
+            result = await self.session.execute(
+                select(
+                    Category.name,
+                    KeywordTag.value,
+                    KeywordTag.keyword_id,
+                    Keyword.volume,
+                    Keyword.keyword,
+                )
+                .select_from(KeywordTag)
+                .join(Category, KeywordTag.category_id == Category.id)
+                .join(Keyword, KeywordTag.keyword_id == Keyword.id)
+                .where(
+                    KeywordTag.keyword_id.in_(chunk),
+                    Category.id != brand_category_id,
+                )
+            )
+
+            for row in result.all():
+                cat_name, value, kw_id, volume, keyword = row
+                key = f"{cat_name}:{value}"
+                if key not in value_stats:
+                    value_stats[key] = {
+                        "category_name": cat_name,
+                        "value": value,
+                        "keyword_ids": [],
+                        "keywords": [],
+                        "total_volume": 0,
+                    }
+                if kw_id not in value_stats[key]["keyword_ids"]:
+                    value_stats[key]["keyword_ids"].append(kw_id)
+                    value_stats[key]["total_volume"] += volume
+                    if len(value_stats[key]["keywords"]) < 20:
+                        value_stats[key]["keywords"].append({"id": kw_id, "keyword": keyword, "volume": volume})
+
+        if not value_stats:
+            return []
+
+        # Get captured status for keywords
+        captured_ids = set()
+        if brand_domain_ids:
+            all_kw_ids = []
+            for vs in value_stats.values():
+                all_kw_ids.extend(vs["keyword_ids"])
+            all_kw_ids = list(set(all_kw_ids))
+
+            for i in range(0, len(all_kw_ids), CHUNK_SIZE):
+                chunk = all_kw_ids[i:i + CHUNK_SIZE]
+                result = await self.session.execute(
+                    select(SerpResult.keyword_id)
+                    .where(
+                        SerpResult.keyword_id.in_(chunk),
+                        SerpResult.domain_id.in_(brand_domain_ids),
+                        SerpResult.rank_group == 1,
+                        SerpResult.result_type == 'organic',
+                    )
+                )
+                captured_ids.update(row[0] for row in result.all())
+
+        # Build results
+        results = []
+        for key, data in value_stats.items():
+            kw_ids = data["keyword_ids"]
+            total_keywords = len(kw_ids)
+            keywords_captured = len(set(kw_ids) & captured_ids)
+            volume_captured = sum(
+                kw["volume"] for kw in data["keywords"][:20]
+                if kw["id"] in captured_ids
+            )
+
+            capture_rate = round(100 * keywords_captured / total_keywords, 1) if total_keywords > 0 else 0.0
+
+            # Get top keywords with detailed info
+            top_keywords = await self._get_detailed_example_keywords(
+                kw_ids[:50], brand_domain_ids, limit_keywords
+            )
+
+            results.append(OpportunityCategoryValue(
+                category_name=data["category_name"],
+                value=data["value"],
+                total_keywords=total_keywords,
+                total_volume=data["total_volume"],
+                keywords_captured=keywords_captured,
+                volume_captured=volume_captured,
+                capture_rate=capture_rate,
+                top_keywords=top_keywords,
+            ))
+
+        # Sort by total volume and limit
+        results.sort(key=lambda x: x.total_volume, reverse=True)
+        return results[:limit_values]
+
+    async def _get_opportunity_competitors_by_type(
+        self, keyword_ids: List[int], brand_domain_ids: List[int]
+    ) -> Dict[str, List[OpportunityCompetitor]]:
+        """
+        Get competitors grouped by domain type for an opportunity breakdown.
+
+        Args:
+            keyword_ids: Keywords to analyze
+            brand_domain_ids: Brand's domain IDs (to exclude)
+
+        Returns:
+            Dict mapping domain type to list of OpportunityCompetitor
+        """
+        if not keyword_ids:
+            return {}
+
+        CHUNK_SIZE = 800
+        domain_stats: Dict[str, Dict[str, Any]] = {}
+
+        for i in range(0, len(keyword_ids), CHUNK_SIZE):
+            chunk = keyword_ids[i:i + CHUNK_SIZE]
+
+            query = (
+                select(
+                    Domain.domain,
+                    BrandDomain.domain_type,
+                    func.count(distinct(SerpResult.keyword_id)).label("wins_count"),
+                    func.sum(Keyword.volume).label("wins_volume"),
+                    func.avg(SerpResult.rank_group).label("avg_position"),
+                )
+                .select_from(SerpResult)
+                .join(Domain, SerpResult.domain_id == Domain.id)
+                .join(Keyword, SerpResult.keyword_id == Keyword.id)
+                .outerjoin(BrandDomain, Domain.id == BrandDomain.domain_id)
+                .where(
+                    SerpResult.keyword_id.in_(chunk),
+                    SerpResult.rank_group == 1,
+                    SerpResult.result_type == 'organic',
+                )
+            )
+
+            if brand_domain_ids:
+                query = query.where(~SerpResult.domain_id.in_(brand_domain_ids))
+
+            query = query.group_by(Domain.domain, BrandDomain.domain_type)
+            result = await self.session.execute(query)
+
+            for row in result.all():
+                domain, dtype, wins_count, wins_volume, avg_pos = row
+                dtype = dtype or "Unknown"
+
+                if domain not in domain_stats:
+                    domain_stats[domain] = {
+                        "domain_type": dtype,
+                        "wins_count": 0,
+                        "wins_volume": 0,
+                        "position_sum": 0.0,
+                        "position_count": 0,
+                    }
+                domain_stats[domain]["wins_count"] += wins_count
+                domain_stats[domain]["wins_volume"] += wins_volume or 0
+                domain_stats[domain]["position_sum"] += (avg_pos or 0) * wins_count
+                domain_stats[domain]["position_count"] += wins_count
+
+        # Group by domain type
+        competitors_by_type: Dict[str, List[OpportunityCompetitor]] = {}
+
+        for domain, stats in domain_stats.items():
+            dtype = stats["domain_type"]
+            avg_pos = (
+                stats["position_sum"] / stats["position_count"]
+                if stats["position_count"] > 0
+                else 0.0
+            )
+
+            competitor = OpportunityCompetitor(
+                domain=domain,
+                domain_type=dtype,
+                wins_count=stats["wins_count"],
+                wins_volume=stats["wins_volume"],
+                avg_position=round(avg_pos, 1),
+            )
+
+            if dtype not in competitors_by_type:
+                competitors_by_type[dtype] = []
+            competitors_by_type[dtype].append(competitor)
+
+        # Sort each group by volume and limit to top 5
+        for dtype in competitors_by_type:
+            competitors_by_type[dtype].sort(key=lambda x: x.wins_volume, reverse=True)
+            competitors_by_type[dtype] = competitors_by_type[dtype][:5]
+
+        return competitors_by_type
+
+    async def _get_detailed_example_keywords(
+        self, keyword_ids: List[int], brand_domain_ids: List[int], limit: int = 10
+    ) -> List[OpportunityKeywordDetail]:
+        """
+        Get detailed example keywords with winner info.
+
+        Args:
+            keyword_ids: Keywords to analyze
+            brand_domain_ids: Brand's domain IDs
+            limit: Max keywords to return
+
+        Returns:
+            List of OpportunityKeywordDetail
+        """
+        if not keyword_ids:
+            return []
+
+        # Get top keywords by volume with winner info (organic only)
+        query = (
+            select(
+                Keyword.keyword,
+                Keyword.volume,
+                Domain.domain,
+                SerpResult.rank_group,
+                BrandDomain.domain_type,
+            )
+            .select_from(Keyword)
+            .outerjoin(
+                SerpResult,
+                and_(SerpResult.keyword_id == Keyword.id, SerpResult.rank_group == 1, SerpResult.result_type == 'organic')
+            )
+            .outerjoin(Domain, SerpResult.domain_id == Domain.id)
+            .outerjoin(BrandDomain, Domain.id == BrandDomain.domain_id)
+            .where(Keyword.id.in_(keyword_ids[:100]))  # Limit input for safety
+            .order_by(Keyword.volume.desc())
+            .limit(limit)
+        )
+
+        result = await self.session.execute(query)
+
+        # Get brand's position on these keywords (organic only)
+        brand_positions: Dict[str, int] = {}
+        if brand_domain_ids:
+            brand_result = await self.session.execute(
+                select(Keyword.keyword, func.min(SerpResult.rank_group))
+                .select_from(Keyword)
+                .join(SerpResult, SerpResult.keyword_id == Keyword.id)
+                .where(
+                    Keyword.id.in_(keyword_ids[:100]),
+                    SerpResult.domain_id.in_(brand_domain_ids),
+                    SerpResult.result_type == 'organic',
+                )
+                .group_by(Keyword.keyword)
+            )
+            brand_positions = {row[0]: row[1] for row in brand_result.all()}
+
+        # Deduplicate by keyword - keep first occurrence (highest volume due to ORDER BY)
+        details = []
+        seen_keywords = set()
+        rows = result.all()
+        for row in rows:
+            keyword, volume, winner_domain, winner_pos, winner_type = row
+            if keyword in seen_keywords:
+                continue  # Skip duplicate keywords
+            seen_keywords.add(keyword)
+            details.append(OpportunityKeywordDetail(
+                keyword=keyword,
+                volume=volume,
+                winner_domain=winner_domain,
+                winner_position=winner_pos,
+                brand_position=brand_positions.get(keyword),
+                winner_domain_type=winner_type,
+            ))
+
+        return details
