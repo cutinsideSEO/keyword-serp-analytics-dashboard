@@ -277,12 +277,12 @@ export function CategoryExplorer({ data }: CategoryExplorerProps) {
                                       {topDomains.length > 0 && (
                                         <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-gray-200">
                                           {topDomains.slice(0, 4).map((d) => {
-                                            const config = domainTypeConfig[d.type as keyof typeof domainTypeConfig];
-                                            const Icon = config?.icon || Building2;
+                                            const styles = getStyles(d.type);
+                                            const Icon = getIcon(d.type);
                                             return (
                                               <div
                                                 key={d.type}
-                                                className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${config?.bgColor || 'bg-gray-50'} ${config?.textColor || 'text-gray-700'} ${config?.borderColor || 'border-gray-200'} border`}
+                                                className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${styles.bgColor} ${styles.textColor} ${styles.borderColor} border`}
                                                 title={`${d.type}: ${d.domain} (${formatVolume(d.visibility)} visibility)`}
                                               >
                                                 <Icon className="h-3 w-3" />
@@ -320,22 +320,22 @@ export function CategoryExplorer({ data }: CategoryExplorerProps) {
                             <div className="bg-white rounded-lg p-4 border border-gray-200">
                               <h5 className="font-semibold text-gray-800 mb-3">Top Players by Type</h5>
                               <div className="space-y-3">
-                                {(['Brand', 'Reseller', 'UGC', '3rd Party'] as const).map((type) => {
+                                {getDomainTypeNames().map((type) => {
                                   const players = breakdown.top_players_by_type[type] || [];
                                   const topPlayer = players[0];
-                                  const config = domainTypeConfig[type];
-                                  const Icon = config.icon;
+                                  const styles = getStyles(type);
+                                  const Icon = getIcon(type);
 
                                   if (!topPlayer) return null;
 
                                   return (
                                     <div
                                       key={type}
-                                      className={`p-3 rounded-lg border ${config.bgColor} ${config.borderColor}`}
+                                      className={`p-3 rounded-lg border ${styles.bgColor} ${styles.borderColor}`}
                                     >
                                       <div className="flex items-center gap-2 mb-1">
-                                        <Icon className={`h-4 w-4 ${config.textColor}`} />
-                                        <span className={`text-xs font-medium ${config.textColor}`}>{type}</span>
+                                        <Icon className={`h-4 w-4 ${styles.textColor}`} />
+                                        <span className={`text-xs font-medium ${styles.textColor}`}>{type}</span>
                                       </div>
                                       <div className="font-semibold text-gray-900 truncate">
                                         {topPlayer.domain.replace('www.', '')}

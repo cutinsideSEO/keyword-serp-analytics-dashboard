@@ -6,25 +6,19 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, Title, Text, BarChart, DonutChart, Grid, ProgressBar } from '@tremor/react';
-import { Tag, ChevronRight, ChevronDown, BarChart3, Building2, ShoppingCart, MessageCircle, Newspaper, Loader2, Hash } from 'lucide-react';
+import { Tag, ChevronRight, ChevronDown, BarChart3, Loader2, Hash } from 'lucide-react';
 import type { ModifierGroupMarketStats, ModifierGroupBreakdown, DomainVisibilityItem } from '../../types';
 import { getModifierGroupMarketBreakdown } from '../../api/endpoints';
+import { useMarketConfig } from '../../contexts/MarketConfigContext';
 
 interface ModifierGroupExplorerProps {
   data: ModifierGroupMarketStats[];
 }
 
-// Domain type icons and colors
-const domainTypeConfig = {
-  Brand: { icon: Building2, color: 'blue', bgColor: 'bg-blue-50', textColor: 'text-blue-700', borderColor: 'border-blue-200' },
-  Reseller: { icon: ShoppingCart, color: 'purple', bgColor: 'bg-purple-50', textColor: 'text-purple-700', borderColor: 'border-purple-200' },
-  UGC: { icon: MessageCircle, color: 'amber', bgColor: 'bg-amber-50', textColor: 'text-amber-700', borderColor: 'border-amber-200' },
-  '3rd Party': { icon: Newspaper, color: 'teal', bgColor: 'bg-teal-50', textColor: 'text-teal-700', borderColor: 'border-teal-200' },
-};
-
 const ITEMS_PER_PAGE = 12;
 
 export function ModifierGroupExplorer({ data }: ModifierGroupExplorerProps) {
+  const { getStyles, getIcon, getTremorColor, getDomainTypeNames } = useMarketConfig();
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [groupBreakdowns, setGroupBreakdowns] = useState<Record<string, ModifierGroupBreakdown>>({});
   const [loadingGroups, setLoadingGroups] = useState<Set<string>>(new Set());
@@ -66,18 +60,18 @@ export function ModifierGroupExplorer({ data }: ModifierGroupExplorerProps) {
 
   // Prepare donut chart data from top_players_by_type
   const prepareDonutData = (breakdown: ModifierGroupBreakdown) => {
-    const data: { name: string; value: number }[] = [];
-    const types = ['Brand', 'Reseller', 'UGC', '3rd Party'];
+    const chartData: { name: string; value: number }[] = [];
+    const types = getDomainTypeNames();
 
     types.forEach(type => {
       const players = breakdown.top_players_by_type[type] || [];
       const totalVisibility = players.reduce((sum, p) => sum + (p.visibility_score || 0), 0);
       if (totalVisibility > 0) {
-        data.push({ name: type, value: Math.round(totalVisibility) });
+        chartData.push({ name: type, value: Math.round(totalVisibility) });
       }
     });
 
-    return data;
+    return chartData;
   };
 
   // Prepare bar chart data from top_tags
@@ -310,7 +304,7 @@ export function ModifierGroupExplorer({ data }: ModifierGroupExplorerProps) {
                                 data={prepareDonutData(breakdown)}
                                 category="value"
                                 index="name"
-                                colors={['blue', 'violet', 'amber', 'teal']}
+                                colors={getDomainTypeNames().map(type => getTremorColor(type))}
                                 valueFormatter={(v) => formatVolume(v)}
                                 className="h-48"
                                 showLabel={true}
@@ -322,22 +316,22 @@ export function ModifierGroupExplorer({ data }: ModifierGroupExplorerProps) {
                             <div className="bg-white rounded-lg p-4 border border-gray-200">
                               <h5 className="font-semibold text-gray-800 mb-3">Top Players by Type</h5>
                               <div className="space-y-3">
-                                {(['Brand', 'Reseller', 'UGC', '3rd Party'] as const).map((type) => {
+                                {getDomainTypeNames().map((type) => {
                                   const players = breakdown.top_players_by_type[type] || [];
                                   const topPlayer = players[0];
-                                  const config = domainTypeConfig[type];
-                                  const Icon = config.icon;
+                                  const styles = getStyles(type);
+                                  const Icon = getIcon(type);
 
                                   if (!topPlayer) return null;
 
                                   return (
                                     <div
                                       key={type}
-                                      className={`p-3 rounded-lg border ${config.bgColor} ${config.borderColor}`}
+                                      className={`p-3 rounded-lg border ${styles.bgColor} ${styles.borderColor}`}
                                     >
                                       <div className="flex items-center gap-2 mb-1">
-                                        <Icon className={`h-4 w-4 ${config.textColor}`} />
-                                        <span className={`text-xs font-medium ${config.textColor}`}>{type}</span>
+                                        <Icon className={`h-4 w-4 ${styles.textColor}`} />
+                                        <span className={`text-xs font-medium ${styles.textColor}`}>{type}</span>
                                       </div>
                                       <div className="font-semibold text-gray-900 truncate">
                                         {topPlayer.domain.replace('www.', '')}

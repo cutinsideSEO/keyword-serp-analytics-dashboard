@@ -9,8 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Card, Title, Text, BarChart, DonutChart, Grid, ProgressBar } from '@tremor/react';
 import {
   Layers, ChevronRight, ChevronDown, TrendingUp, TrendingDown,
-  Building2, ShoppingCart, MessageCircle, Newspaper, Loader2,
-  Trophy, AlertTriangle, Target
+  Loader2, Trophy, Target
 } from 'lucide-react';
 import type {
   CategoryLossStats,
@@ -21,30 +20,17 @@ import type {
 } from '../../types';
 import { getCategoryProtectionBreakdown } from '../../api/endpoints';
 import { InfoTooltip } from '../common/InfoTooltip';
+import { useMarketConfig } from '../../contexts/MarketConfigContext';
 
 interface CategoryProtectionExplorerProps {
   categories: CategoryLossStats[];
   brandName: string;
 }
 
-// Domain type icons and colors
-const domainTypeConfig: Record<string, {
-  icon: typeof Building2;
-  color: string;
-  bgColor: string;
-  textColor: string;
-  chartColor: string;
-}> = {
-  Brand: { icon: Building2, color: 'blue', bgColor: 'bg-blue-50', textColor: 'text-blue-700', chartColor: '#3b82f6' },
-  Reseller: { icon: ShoppingCart, color: 'purple', bgColor: 'bg-purple-50', textColor: 'text-purple-700', chartColor: '#8b5cf6' },
-  UGC: { icon: MessageCircle, color: 'amber', bgColor: 'bg-amber-50', textColor: 'text-amber-700', chartColor: '#f59e0b' },
-  '3rd Party': { icon: Newspaper, color: 'teal', bgColor: 'bg-teal-50', textColor: 'text-teal-700', chartColor: '#14b8a6' },
-  Unknown: { icon: Target, color: 'gray', bgColor: 'bg-gray-50', textColor: 'text-gray-700', chartColor: '#6b7280' },
-};
-
 const ITEMS_PER_PAGE = 12;
 
 export function CategoryProtectionExplorer({ categories, brandName }: CategoryProtectionExplorerProps) {
+  const { getStyles, getIcon, getTremorColor } = useMarketConfig();
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [categoryBreakdowns, setCategoryBreakdowns] = useState<Record<string, CategoryProtectionBreakdown>>({});
   const [loadingCategories, setLoadingCategories] = useState<Set<string>>(new Set());
@@ -313,7 +299,7 @@ export function CategoryProtectionExplorer({ categories, brandName }: CategoryPr
                                 index="name"
                                 valueFormatter={(v) => formatVolume(v)}
                                 colors={breakdown.loss_distribution_by_type.map(d =>
-                                  domainTypeConfig[d.domain_type]?.color || 'gray'
+                                  getTremorColor(d.domain_type)
                                 )}
                                 className="h-40"
                                 showLabel={true}
@@ -326,18 +312,18 @@ export function CategoryProtectionExplorer({ categories, brandName }: CategoryPr
                             <h4 className="text-sm font-semibold text-gray-700 mb-3">Top Competitors by Type</h4>
                             <div className="space-y-3">
                               {Object.entries(breakdown.competitors_by_type).map(([type, competitors]) => {
-                                const config = domainTypeConfig[type] || domainTypeConfig.Unknown;
-                                const Icon = config.icon;
+                                const styles = getStyles(type);
+                                const Icon = getIcon(type);
 
                                 return competitors.slice(0, 3).map((comp, i) => (
                                   <div
                                     key={`${type}-${i}`}
-                                    className={`flex items-center justify-between p-2 rounded-lg ${config.bgColor}`}
+                                    className={`flex items-center justify-between p-2 rounded-lg ${styles.bgColor}`}
                                   >
                                     <div className="flex items-center gap-2">
-                                      <Icon className={`h-4 w-4 ${config.textColor}`} />
+                                      <Icon className={`h-4 w-4 ${styles.textColor}`} />
                                       <div>
-                                        <div className={`text-sm font-medium ${config.textColor}`}>
+                                        <div className={`text-sm font-medium ${styles.textColor}`}>
                                           {comp.domain.length > 25 ? comp.domain.substring(0, 25) + '...' : comp.domain}
                                         </div>
                                         <div className="text-xs text-gray-500">
