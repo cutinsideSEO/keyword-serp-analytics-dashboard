@@ -1782,12 +1782,12 @@ class AnalyticsService:
 
         # Calculate KPIs using subquery JOIN
         kpis = await self._calculate_opportunity_kpis(
-            nonbranded_subq, brand_domain_ids, brand_category_id
+            nonbranded_subq, brand_domain_ids, brand_category_ids
         )
 
         # Get modifier group opportunities using subquery JOIN
         modifier_groups = await self._get_modifier_group_opportunities(
-            nonbranded_subq, brand_domain_ids, brand_category_id, limit_competitors
+            nonbranded_subq, brand_domain_ids, brand_category_ids, limit_competitors
         )
 
         # Update KPIs with biggest opportunity
@@ -1804,7 +1804,7 @@ class AnalyticsService:
         )
 
     async def _calculate_opportunity_kpis(
-        self, nonbranded_subq, brand_domain_ids: List[int], brand_category_id: int
+        self, nonbranded_subq, brand_domain_ids: List[int], brand_category_ids: List[int]
     ) -> CategoryOpportunityKPIs:
         """
         Calculate KPIs for category opportunities.
@@ -1814,7 +1814,7 @@ class AnalyticsService:
         Args:
             nonbranded_subq: Subquery selecting non-branded keyword IDs
             brand_domain_ids: Brand's domain IDs
-            brand_category_id: Brand category ID (unused but kept for consistency)
+            brand_category_ids: Brand category IDs (unused but kept for consistency)
 
         Returns:
             CategoryOpportunityKPIs
@@ -1893,7 +1893,7 @@ class AnalyticsService:
         self,
         nonbranded_subq,
         brand_domain_ids: List[int],
-        brand_category_id: int,
+        brand_category_ids: List[int],
         limit_competitors: int = 5,
     ) -> List[ModifierGroupOpportunity]:
         """
@@ -1904,7 +1904,7 @@ class AnalyticsService:
         Args:
             nonbranded_subq: Subquery selecting non-branded keyword IDs
             brand_domain_ids: Brand's domain IDs
-            brand_category_id: Brand category ID for tag filtering
+            brand_category_ids: Brand category IDs for tag filtering
             limit_competitors: Max competitors per group
 
         Returns:
@@ -2015,7 +2015,7 @@ class AnalyticsService:
 
             # Get top tags for this modifier group
             top_tags = await self._get_opportunity_tags(
-                mg_data["keyword_ids"], brand_category_id
+                mg_data["keyword_ids"], brand_category_ids
             )
 
             opportunities.append(
@@ -2178,7 +2178,7 @@ class AnalyticsService:
         return competitors
 
     async def _get_opportunity_tags(
-        self, keyword_ids: List[int], brand_category_id: int, limit: int = 5
+        self, keyword_ids: List[int], brand_category_ids: List[int], limit: int = 5
     ) -> Dict[str, int]:
         """
         Get top tags for the given keywords.
@@ -2188,7 +2188,7 @@ class AnalyticsService:
 
         Args:
             keyword_ids: Keyword IDs to analyze
-            brand_category_id: Brand category ID (to exclude brand tags)
+            brand_category_ids: Brand category IDs (to exclude brand tags)
             limit: Max tags to return
 
         Returns:
@@ -2203,7 +2203,7 @@ class AnalyticsService:
         # If small enough, do direct query
         if len(keyword_ids) <= CHUNK_SIZE:
             return await self._get_opportunity_tags_chunk(
-                keyword_ids, brand_category_id, limit
+                keyword_ids, brand_category_ids, limit
             )
 
         # For large lists, use chunking and aggregate results
@@ -2212,7 +2212,7 @@ class AnalyticsService:
         for i in range(0, len(keyword_ids), CHUNK_SIZE):
             chunk = keyword_ids[i:i + CHUNK_SIZE]
             chunk_results = await self._get_opportunity_tags_chunk(
-                chunk, brand_category_id, limit=None  # Get all for aggregation
+                chunk, brand_category_ids, limit=None  # Get all for aggregation
             )
 
             for tag, count in chunk_results.items():
@@ -2223,14 +2223,14 @@ class AnalyticsService:
         return dict(sorted_tags[:limit])
 
     async def _get_opportunity_tags_chunk(
-        self, keyword_ids: List[int], brand_category_id: int, limit: Optional[int] = 5
+        self, keyword_ids: List[int], brand_category_ids: List[int], limit: Optional[int] = 5
     ) -> Dict[str, int]:
         """
         Get tags for a single chunk of keyword IDs.
 
         Args:
             keyword_ids: Chunk of keyword IDs (must be <= 800)
-            brand_category_id: Brand category ID (to exclude brand tags)
+            brand_category_ids: Brand category IDs (to exclude brand tags)
             limit: Max tags to return (None for no limit)
 
         Returns:
@@ -2246,7 +2246,7 @@ class AnalyticsService:
             .join(Category, KeywordTag.category_id == Category.id)
             .where(
                 KeywordTag.keyword_id.in_(keyword_ids),
-                Category.id != brand_category_id,  # Exclude brand category
+                ~Category.id.in_(brand_category_ids),  # Exclude brand categories
             )
             .group_by(Category.name, KeywordTag.value)
             .order_by(func.count(KeywordTag.keyword_id).desc())
@@ -2453,7 +2453,7 @@ class AnalyticsService:
 
         # Get top category values with stats
         top_values = await self._get_opportunity_category_values(
-            keyword_ids, brand_domain_ids, brand_category_id, limit_values, limit_keywords
+            keyword_ids, brand_domain_ids, brand_category_ids, limit_values, limit_keywords
         )
 
         # Get competitors by type
@@ -2483,7 +2483,7 @@ class AnalyticsService:
         self,
         keyword_ids: List[int],
         brand_domain_ids: List[int],
-        brand_category_id: int,
+        brand_category_ids: List[int],
         limit_values: int = 10,
         limit_keywords: int = 5,
     ) -> List[OpportunityCategoryValue]:
@@ -2493,7 +2493,7 @@ class AnalyticsService:
         Args:
             keyword_ids: Keywords to analyze
             brand_domain_ids: Brand's domain IDs
-            brand_category_id: Brand category ID (to exclude)
+            brand_category_ids: Brand category IDs (to exclude)
             limit_values: Max values to return
             limit_keywords: Max example keywords per value
 
@@ -2523,7 +2523,7 @@ class AnalyticsService:
                 .join(Keyword, KeywordTag.keyword_id == Keyword.id)
                 .where(
                     KeywordTag.keyword_id.in_(chunk),
-                    Category.id != brand_category_id,
+                    ~Category.id.in_(brand_category_ids),
                 )
             )
 
