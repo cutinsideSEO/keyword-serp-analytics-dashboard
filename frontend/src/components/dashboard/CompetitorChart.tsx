@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { BarChart } from '@tremor/react';
 import { TrendingDown } from 'lucide-react';
 import type { CompetitorStats } from '../../types';
-import { formatCompactNumber } from '../../utils/formatters';
+import { formatCompactNumber, formatNumber } from '../../utils/formatters';
 import { InfoTooltip } from '../common/InfoTooltip';
 import { useMarketConfig } from '../../contexts/MarketConfigContext';
 

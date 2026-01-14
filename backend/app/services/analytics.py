@@ -19,6 +19,10 @@ from app.models import (
     KeywordTag,
     SerpResult,
 )
+from app.market_config import get_market_config
+
+# Get market configuration
+market_config = get_market_config()
 from app.schemas import (
     BrandProtectionDashboard,
     BrandProtectionKPIs,
@@ -62,16 +66,26 @@ class AnalyticsService:
             session: SQLAlchemy async session
         """
         self.session = session
-        self._brand_category_id: Optional[int] = None
+        self._brand_category_ids: Optional[List[int]] = None
 
-    async def _get_brand_category_id(self) -> int:
-        """Get the brand category ID (cached)."""
-        if self._brand_category_id is None:
+    async def _get_brand_category_ids(self) -> List[int]:
+        """Get the brand category IDs based on market config (cached)."""
+        if self._brand_category_ids is None:
+            # Get category names from market config
+            brand_category_names = market_config.brand_category_names
+            if not brand_category_names:
+                # Fallback to "brand" for backward compatibility
+                brand_category_names = ["brand"]
+
             result = await self.session.execute(
-                select(Category.id).where(Category.name == "brand")
+                select(Category.id).where(Category.name.in_(brand_category_names))
             )
-            self._brand_category_id = result.scalar_one()
-        return self._brand_category_id
+            self._brand_category_ids = [row[0] for row in result.fetchall()]
+
+            if not self._brand_category_ids:
+                logger.warning(f"No brand categories found for names: {brand_category_names}")
+                self._brand_category_ids = []
+        return self._brand_category_ids
 
     async def _get_brand_domains(self, brand_name: str) -> List[int]:
         """
@@ -112,11 +126,14 @@ class AnalyticsService:
         Returns:
             List of keyword IDs
         """
-        brand_category_id = await self._get_brand_category_id()
+        brand_category_ids = await self._get_brand_category_ids()
+
+        if not brand_category_ids:
+            return []
 
         result = await self.session.execute(
             select(KeywordTag.keyword_id).where(
-                KeywordTag.category_id == brand_category_id,
+                KeywordTag.category_id.in_(brand_category_ids),
                 KeywordTag.value == brand_name,
             )
         )
@@ -1690,7 +1707,7 @@ class AnalyticsService:
     # Category Opportunities Methods
     # =========================================================================
 
-    def _get_nonbranded_keywords_subquery(self, brand_category_id: int):
+    def _get_nonbranded_keywords_subquery(self, brand_category_ids: List[int]):
         """
         Get a subquery that selects non-branded keyword IDs.
 
@@ -1699,14 +1716,14 @@ class AnalyticsService:
         with other tables efficiently.
 
         Args:
-            brand_category_id: The category ID for 'brand' tags
+            brand_category_ids: The category IDs for 'brand' tags
 
         Returns:
             SQLAlchemy subquery selecting keyword IDs without brand tags
         """
-        # Keywords that HAVE a brand tag
+        # Keywords that HAVE a brand tag (in any brand category)
         branded_subq = select(KeywordTag.keyword_id).where(
-            KeywordTag.category_id == brand_category_id
+            KeywordTag.category_id.in_(brand_category_ids)
         )
 
         # Non-branded = NOT in branded set
@@ -1734,8 +1751,8 @@ class AnalyticsService:
         Returns:
             CategoryOpportunityDashboard with opportunities
         """
-        # Get brand category ID first (needed for subquery)
-        brand_category_id = await self._get_brand_category_id()
+        # Get brand category IDs first (needed for subquery)
+        brand_category_ids = await self._get_brand_category_ids()
 
         # Get brand's domain IDs
         brand_domain_ids = await self._get_brand_domains(brand_name)
@@ -1747,7 +1764,7 @@ class AnalyticsService:
             brand_domains = [row[0] for row in result.all()]
 
         # Get non-branded keywords subquery (not a list, to avoid parameter limits)
-        nonbranded_subq = self._get_nonbranded_keywords_subquery(brand_category_id)
+        nonbranded_subq = self._get_nonbranded_keywords_subquery(brand_category_ids)
 
         # Check if we have any non-branded keywords
         count_result = await self.session.execute(
@@ -2245,7 +2262,7 @@ class AnalyticsService:
     # Competitor Branded Opportunities Methods
     # =========================================================================
 
-    def _get_competitor_branded_keywords_subquery(self, brand_category_id: int, brand_name: str):
+    def _get_competitor_branded_keywords_subquery(self, brand_category_ids: List[int], brand_name: str):
         """
         Get a subquery that selects keywords tagged with competitor brands.
 
@@ -2253,14 +2270,14 @@ class AnalyticsService:
         This allows analyzing opportunities on competitor-branded keywords.
 
         Args:
-            brand_category_id: The category ID for 'brand' tags
+            brand_category_ids: The category IDs for 'brand' tags
             brand_name: The selected brand name (to exclude)
 
         Returns:
             SQLAlchemy subquery selecting keyword IDs with competitor brand tags
         """
         return select(KeywordTag.keyword_id.label("id")).where(
-            KeywordTag.category_id == brand_category_id,
+            KeywordTag.category_id.in_(brand_category_ids),
             KeywordTag.value != brand_name  # Competitor brands only
         ).distinct().subquery("competitor_branded_keywords")
 
@@ -2280,7 +2297,7 @@ class AnalyticsService:
         Returns:
             CompetitorBrandedDashboard with opportunities
         """
-        brand_category_id = await self._get_brand_category_id()
+        brand_category_ids = await self._get_brand_category_ids()
 
         # Get brand's domain IDs
         brand_domain_ids = await self._get_brand_domains(brand_name)
@@ -2293,7 +2310,7 @@ class AnalyticsService:
 
         # Get competitor branded keywords subquery
         competitor_subq = self._get_competitor_branded_keywords_subquery(
-            brand_category_id, brand_name
+            brand_category_ids, brand_name
         )
 
         # Get list of competitor brands
@@ -2301,7 +2318,7 @@ class AnalyticsService:
             select(KeywordTag.value)
             .select_from(KeywordTag)
             .join(competitor_subq, KeywordTag.keyword_id == competitor_subq.c.id)
-            .where(KeywordTag.category_id == brand_category_id)
+            .where(KeywordTag.category_id.in_(brand_category_ids))
             .group_by(KeywordTag.value)
             .order_by(func.count().desc())
             .limit(50)
@@ -2325,12 +2342,12 @@ class AnalyticsService:
 
         # Calculate KPIs (reuse the same logic as non-branded)
         kpis = await self._calculate_opportunity_kpis(
-            competitor_subq, brand_domain_ids, brand_category_id
+            competitor_subq, brand_domain_ids, brand_category_ids
         )
 
         # Get modifier group opportunities (reuse the same logic)
         modifier_groups = await self._get_modifier_group_opportunities(
-            competitor_subq, brand_domain_ids, brand_category_id, limit_competitors
+            competitor_subq, brand_domain_ids, brand_category_ids, limit_competitors
         )
 
         # Update KPIs with biggest opportunity
@@ -2368,16 +2385,16 @@ class AnalyticsService:
         Returns:
             ModifierGroupOpportunityBreakdown with full details
         """
-        brand_category_id = await self._get_brand_category_id()
+        brand_category_ids = await self._get_brand_category_ids()
         brand_domain_ids = await self._get_brand_domains(brand_name)
 
         # Get the appropriate keyword subquery based on type
         if keyword_type == "competitor_branded":
             keyword_subq = self._get_competitor_branded_keywords_subquery(
-                brand_category_id, brand_name
+                brand_category_ids, brand_name
             )
         else:
-            keyword_subq = self._get_nonbranded_keywords_subquery(brand_category_id)
+            keyword_subq = self._get_nonbranded_keywords_subquery(brand_category_ids)
 
         # Get keywords for this modifier group
         mg_filter = (
