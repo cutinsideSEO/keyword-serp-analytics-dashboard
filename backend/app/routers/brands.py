@@ -7,7 +7,7 @@ Provides endpoints for listing brands and managing brand-domain mappings.
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import distinct, func, select
+from sqlalchemy import distinct, func, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -20,6 +20,7 @@ from app.schemas import (
     BrandWithDomains,
 )
 from app.services.brand_mapper import BrandMapperService
+from app.market_config import get_market_config
 
 router = APIRouter(prefix="/brands", tags=["brands"])
 
@@ -33,6 +34,9 @@ async def list_brands(
     """
     List all brands with their keyword counts and total volume.
 
+    Uses brand_category_names from market config to determine which categories
+    represent brands (e.g., "brand" for bicycle, "insurance_company___canonical" for insurance).
+
     Args:
         db: Database session
         min_keywords: Minimum keyword count filter
@@ -41,14 +45,26 @@ async def list_brands(
     Returns:
         List of brands with statistics
     """
-    # Get brand category
-    result = await db.execute(select(Category).where(Category.name == "brand"))
-    brand_category = result.scalar_one_or_none()
+    # Get brand category names from market config
+    market_config = get_market_config()
+    brand_category_names = market_config.brand_category_names
 
-    if not brand_category:
+    # Fallback to "brand" if not configured
+    if not brand_category_names:
+        brand_category_names = ["brand"]
+
+    # Get brand categories
+    result = await db.execute(
+        select(Category).where(Category.name.in_(brand_category_names))
+    )
+    brand_categories = result.scalars().all()
+
+    if not brand_categories:
         return BrandListResponse(items=[], total=0)
 
-    # Get all unique brand values with counts
+    brand_category_ids = [c.id for c in brand_categories]
+
+    # Get all unique brand values with counts across all brand categories
     query = (
         select(
             KeywordTag.value,
@@ -56,7 +72,7 @@ async def list_brands(
             func.sum(Keyword.volume).label("total_volume"),
         )
         .join(Keyword, KeywordTag.keyword_id == Keyword.id)
-        .where(KeywordTag.category_id == brand_category.id)
+        .where(KeywordTag.category_id.in_(brand_category_ids))
         .group_by(KeywordTag.value)
         .having(func.count(distinct(KeywordTag.keyword_id)) >= min_keywords)
         .having(func.sum(Keyword.volume) >= min_volume)
@@ -93,12 +109,20 @@ async def get_brand(
     Returns:
         Brand details with associated domains
     """
-    # Get brand category
-    result = await db.execute(select(Category).where(Category.name == "brand"))
-    brand_category = result.scalar_one_or_none()
+    # Get brand category names from market config
+    market_config = get_market_config()
+    brand_category_names = market_config.brand_category_names or ["brand"]
 
-    if not brand_category:
+    # Get brand categories
+    result = await db.execute(
+        select(Category).where(Category.name.in_(brand_category_names))
+    )
+    brand_categories = result.scalars().all()
+
+    if not brand_categories:
         raise HTTPException(status_code=404, detail="Brand category not found")
+
+    brand_category_ids = [c.id for c in brand_categories]
 
     # Get brand stats
     stats_query = (
@@ -108,7 +132,7 @@ async def get_brand(
         )
         .join(Keyword, KeywordTag.keyword_id == Keyword.id)
         .where(
-            KeywordTag.category_id == brand_category.id,
+            KeywordTag.category_id.in_(brand_category_ids),
             KeywordTag.value == brand_name,
         )
     )
