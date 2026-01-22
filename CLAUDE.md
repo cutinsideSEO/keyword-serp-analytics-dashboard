@@ -255,11 +255,26 @@ cd backend && ./venv/Scripts/python.exe -m uvicorn app.main:app --reload --port 
 cd frontend && npm run dev
 ```
 
-### Import Data for a Market
+### Import Data
+
+Data is organized by market in `source_data/` folders:
+```
+source_data/
+├── insurance_il/
+│   ├── keywords.csv
+│   └── serp.json
+└── bicycle/
+    ├── keywords.csv
+    └── serp.json
+```
+
+Import commands:
 ```bash
 cd scripts
-python import_data.py --market insurance_il
-python map_brands.py --market insurance_il
+python import_data.py --list              # List available markets
+python import_data.py --market insurance_il  # Import one market
+python import_data.py --all                  # Import all markets
+python map_brands.py --market insurance_il   # AI domain mapping
 ```
 
 ### Frontend: useMarketConfig() hook
@@ -278,6 +293,41 @@ const Icon = getIcon(competitor.domain_type);
 ```
 
 **IMPORTANT**: Never hardcode domain types. Always use the context.
+
+---
+
+## Deployment Architecture (Vercel + Supabase)
+
+```
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│  Your Computer   │     │     Vercel       │     │    Supabase      │
+│                  │     │                  │     │                  │
+│  source_data/    │     │  Frontend (React)│     │   PostgreSQL     │
+│  ├── market_a/   │     │  Backend (FastAPI│────▶│   Database       │
+│  └── market_b/   │     │    on Vercel)    │     │                  │
+│                  │     │                  │     │  - markets       │
+│  import_data.py ─┼─────┼──────────────────┼────▶│  - keywords      │
+│  (runs locally)  │     │                  │     │  - serp_results  │
+└──────────────────┘     └──────────────────┘     └──────────────────┘
+```
+
+### How It Works
+1. **Vercel** hosts the app (frontend + API)
+2. **Supabase** hosts the database (cloud PostgreSQL)
+3. **Import scripts run locally** on your computer, connecting directly to Supabase
+
+### Data Update Workflow
+1. Place new data files in `source_data/{market_id}/`
+2. Run import script locally (connects to Supabase):
+   ```bash
+   python scripts/import_data.py --market insurance_il
+   ```
+3. Data appears immediately in the live Vercel app
+
+### Why This Works
+- Import scripts use the same `DATABASE_URL` as the deployed app
+- Both your local machine and Vercel connect to the same Supabase database
+- No need to redeploy Vercel when updating data
 
 ---
 

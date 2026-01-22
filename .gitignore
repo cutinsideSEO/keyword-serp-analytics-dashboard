@@ -44,13 +44,10 @@ logs/
 htmlcov/
 .pytest_cache/
 
-# Source data (large files)
-source_data/
-*.csv
-*.json
-!package.json
-!tsconfig.json
-!tsconfig.node.json
+# Source data (large files - keep structure, exclude data)
+source_data/**/*.csv
+source_data/**/*.json
+!source_data/README.md
 
 # Misc
 *.bak
