@@ -2,46 +2,36 @@
 Brand mapping script with comprehensive 3-phase approach.
 
 Maps brands to domains using:
-1. Manual mappings (highest priority)
+1. Manual mappings from source_data/{market_id}/mappings.json (highest priority)
 2. Heuristic matching (brand name in domain)
 3. AI analysis for top 1000 unmapped domains by visibility
 
+Folder Structure:
+    source_data/
+    ├── insurance_il/
+    │   ├── keywords.csv
+    │   ├── serp.json
+    │   └── mappings.json      ← Manual brand-domain mappings
+    └── bicycle/
+        ├── keywords.csv
+        ├── serp.json
+        └── mappings.json
+
 Usage:
-    python scripts/map_brands.py                                    # Run all phases with AI
-    python scripts/map_brands.py --no-ai                            # Skip AI phase
-    python scripts/map_brands.py --manual manual_mappings.json     # With manual mappings file
+    python scripts/map_brands.py --market insurance_il   # Map specific market
+    python scripts/map_brands.py --all                   # Map ALL markets
+    python scripts/map_brands.py --market insurance_il --no-ai  # Skip AI phase
+    python scripts/map_brands.py --list                  # List available markets
+    python scripts/map_brands.py --create-example        # Create example mappings.json
 """
-##COMPETITORS = [
-  ##  # מתחרים ישירים (השוואת ביטוחים):
-   # "bestie.co.il",        # בסטי
-   # "shukabit.co.il",       # שוק הביטוח
-    #"hova.co.il",           # הובה
-    #"wobi.co.il",           # וובי
-    #"trusty.co.il",         # טראסטי
-    # לא ישירים (חברות ביטוח):
-    #"we-sure.co.il",        # wesure
-    #"555.co.il",            # ביטוח ישיר
-    #"lbr.co.il",            # ליברה
-    #"aig.co.il",            # AIG
-    #"clalbit.co.il",        # כלל ביטוח
-    #"menoramivt.co.il",     # מנורה
-    #"harel-group.co.il",    # הראל
-    #"fnx.co.il",            # הפניקס
-    #"9000000.co.il",        # ביטוח 9
-    #"pool.org.il",          # הפול ביטוח
-    #"migdal.co.il",         # מגדל
-    #"shlomo-bit.co.il",     # שלמה
-    #"ayalon-ins.co.il",     # איילון
-    #"passportcard.co.il",   # פספורטכארד
-    #"hcsra.co.il",          # הכשרה
-#]
+
 import argparse
 import asyncio
 import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
@@ -59,20 +49,78 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
-def load_manual_mappings(file_path: Optional[str]) -> Optional[Dict[str, Dict[str, Any]]]:
+def get_source_data_dir() -> Path:
+    """Get the source_data directory path."""
+    return settings.project_root / "source_data"
+
+
+def list_available_markets() -> List[str]:
     """
-    Load manual mappings from a JSON file.
+    List all markets that have data in source_data/.
+
+    Returns:
+        List of market IDs (folder names)
+    """
+    source_dir = get_source_data_dir()
+    if not source_dir.exists():
+        return []
+
+    markets = []
+    for folder in source_dir.iterdir():
+        if folder.is_dir():
+            # Check if folder has data files (keywords imported)
+            csv_files = list(folder.glob("*.csv"))
+            json_files = [f for f in folder.glob("*.json")
+                         if not f.name.startswith("package") and f.name != "mappings.json"]
+            mappings_file = folder / "mappings.json"
+
+            status_parts = []
+            if csv_files and json_files:
+                status_parts.append("data")
+            if mappings_file.exists():
+                status_parts.append("mappings")
+
+            if status_parts:
+                markets.append(f"{folder.name} ({', '.join(status_parts)})")
+            elif csv_files or json_files:
+                markets.append(f"{folder.name} (partial data)")
+
+    return sorted(markets)
+
+
+def find_mappings_file(market_id: str) -> Optional[Path]:
+    """
+    Find mappings.json file for a specific market.
 
     Args:
-        file_path: Path to JSON file containing manual mappings
+        market_id: Market ID (folder name in source_data/)
+
+    Returns:
+        Path to mappings.json or None if not found
+    """
+    source_dir = get_source_data_dir()
+    mappings_path = source_dir / market_id / "mappings.json"
+
+    if mappings_path.exists():
+        return mappings_path
+
+    return None
+
+
+def load_manual_mappings(market_id: str) -> Optional[Dict[str, Dict[str, Any]]]:
+    """
+    Load manual mappings from the market's mappings.json file.
+
+    Args:
+        market_id: Market ID
 
     Returns:
         Dictionary of manual mappings or None
 
-    Example JSON format:
+    Example mappings.json format:
     {
-        "trekbikes.com": {
-            "brand_name": "Trek",
+        "geico.com": {
+            "brand_name": "Geico",
             "domain_type": "Brand",
             "is_primary": true,
             "confidence": 1.0
@@ -82,184 +130,260 @@ def load_manual_mappings(file_path: Optional[str]) -> Optional[Dict[str, Dict[st
             "domain_type": "Reseller",
             "is_primary": false,
             "confidence": 1.0
-        },
-        "reddit.com": {
-            "brand_name": "N/A",
-            "domain_type": "UGC",
-            "is_primary": false,
-            "confidence": 1.0
-        },
-        "bikeradar.com": {
-            "brand_name": "N/A",
-            "domain_type": "3rd Party",
-            "is_primary": false,
-            "confidence": 1.0
         }
     }
     """
-    if not file_path:
+    mappings_path = find_mappings_file(market_id)
+
+    if not mappings_path:
+        logger.info(f"No mappings.json found for market {market_id}")
         return None
 
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(mappings_path, "r", encoding="utf-8") as f:
             mappings = json.load(f)
-        logger.info(f"Loaded {len(mappings)} manual mappings from {file_path}")
+        logger.info(f"Loaded {len(mappings)} manual mappings from {mappings_path}")
         return mappings
-    except FileNotFoundError:
-        logger.error(f"Manual mappings file not found: {file_path}")
-        return None
     except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON in manual mappings file: {e}")
+        logger.error(f"Invalid JSON in mappings file {mappings_path}: {e}")
         return None
 
 
-def create_example_manual_mappings_file(output_path: str = "manual_mappings_example.json"):
+def create_example_mappings_file(market_id: str = "example_market"):
     """
-    Create an example manual mappings JSON file.
+    Create an example mappings.json file in source_data/{market_id}/.
 
     Args:
-        output_path: Where to save the example file
+        market_id: Market ID to create example for
     """
+    source_dir = get_source_data_dir()
+    market_dir = source_dir / market_id
+    market_dir.mkdir(parents=True, exist_ok=True)
+
     example = {
-        "trekbikes.com": {
-            "brand_name": "Trek",
+        "_comment": "Manual brand-domain mappings for this market",
+        "_domain_types": [
+            "Brand - Official brand website",
+            "Reseller - Multi-brand retailers/aggregators",
+            "UGC - User-generated content (forums, Reddit)",
+            "3rd Party - Review sites, news, affiliates"
+        ],
+        "example-brand.com": {
+            "brand_name": "ExampleBrand",
             "domain_type": "Brand",
             "is_primary": True,
-            "confidence": 1.0,
-        },
-        "giant-bicycles.com": {
-            "brand_name": "Giant",
-            "domain_type": "Brand",
-            "is_primary": True,
-            "confidence": 1.0,
+            "confidence": 1.0
         },
         "amazon.com": {
             "brand_name": "N/A",
             "domain_type": "Reseller",
             "is_primary": False,
-            "confidence": 1.0,
+            "confidence": 1.0
         },
         "walmart.com": {
             "brand_name": "N/A",
             "domain_type": "Reseller",
             "is_primary": False,
-            "confidence": 1.0,
+            "confidence": 1.0
         },
         "reddit.com": {
             "brand_name": "N/A",
             "domain_type": "UGC",
             "is_primary": False,
-            "confidence": 1.0,
+            "confidence": 1.0
         },
-        "bikeforums.net": {
-            "brand_name": "N/A",
-            "domain_type": "UGC",
-            "is_primary": False,
-            "confidence": 1.0,
-        },
-        "bikeradar.com": {
+        "review-site.com": {
             "brand_name": "N/A",
             "domain_type": "3rd Party",
             "is_primary": False,
-            "confidence": 1.0,
-        },
-        "cyclingnews.com": {
-            "brand_name": "N/A",
-            "domain_type": "3rd Party",
-            "is_primary": False,
-            "confidence": 1.0,
-        },
+            "confidence": 1.0
+        }
     }
 
-    output_file = Path(output_path)
-    with open(output_file, "w") as f:
-        json.dump(example, f, indent=2)
+    output_path = market_dir / "mappings.json"
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(example, f, indent=2, ensure_ascii=False)
 
-    logger.info(f"Created example manual mappings file: {output_file}")
-    print(f"\nExample manual mappings file created: {output_file}")
-    print("\nDomain types:")
-    print("  - Brand: Official brand website selling their own products")
+    logger.info(f"Created example mappings file: {output_path}")
+    print(f"\nExample mappings file created: {output_path}")
+    print("\nEdit this file to add your manual domain mappings.")
+    print("Remove the _comment and _domain_types keys before using.")
+    print("\nDomain types (use exact names from your market config):")
+    print("  - Brand: Official brand website")
     print("  - Reseller: Multi-brand retailers/aggregators")
     print("  - UGC: User-generated content sites")
     print("  - 3rd Party: Reviews, content, news, or affiliate sites")
 
 
-async def main(
-    manual_mappings_file: Optional[str] = None,
-    use_ai: bool = True,
-    create_example: bool = False,
-):
+async def map_market(market_id: str, use_ai: bool = True) -> Dict[str, Any]:
     """
-    Main mapping function with 3-phase approach.
+    Run brand mapping for a single market.
 
     Args:
-        manual_mappings_file: Path to JSON file with manual mappings
-        use_ai: Whether to use AI for phase 3
-        create_example: Whether to create example file and exit
+        market_id: Market ID to map
+        use_ai: Whether to use AI for unmapped domains
+
+    Returns:
+        Mapping statistics
     """
+    logger.info(f"{'='*60}")
+    logger.info(f"Mapping brands for market: {market_id}")
+    logger.info(f"{'='*60}")
+
+    # Load manual mappings from market folder
+    manual_mappings = load_manual_mappings(market_id)
+
+    # Filter out comment keys
+    if manual_mappings:
+        manual_mappings = {
+            k: v for k, v in manual_mappings.items()
+            if not k.startswith("_") and isinstance(v, dict)
+        }
+
+    await init_db()
+
+    if manual_mappings:
+        logger.info(f"Phase 1: Manual mappings ({len(manual_mappings)} domains)")
+    else:
+        logger.info("Phase 1: Manual mappings (skipped - no mappings.json)")
+
+    logger.info("Phase 2: Heuristic matching (brand name in domain)")
+
+    if use_ai:
+        logger.info("Phase 3: AI classification (top 1000 unmapped domains)")
+    else:
+        logger.info("Phase 3: AI classification (skipped)")
+
+    stats = await run_comprehensive_mapping(
+        market_id=market_id,
+        manual_mappings=manual_mappings,
+        use_ai=use_ai,
+    )
+
+    logger.info(f"Mapping complete for {market_id}")
+    logger.info(f"  Manual:    {stats['manual_mappings']}")
+    logger.info(f"  Heuristic: {stats['heuristic_mappings']}")
+    logger.info(f"  AI:        {stats['ai_mappings']}")
+    logger.info(f"  Total:     {stats['total_mappings']}")
+
+    return stats
+
+
+async def map_all_markets(use_ai: bool = True) -> Dict[str, Any]:
+    """
+    Run brand mapping for all markets.
+
+    Args:
+        use_ai: Whether to use AI
+
+    Returns:
+        Dictionary of market_id -> stats
+    """
+    markets = list_available_markets()
+    # Extract market IDs (remove status info)
+    market_ids = [m.split(" ")[0] for m in markets if "data" in m]
+
+    if not market_ids:
+        logger.error("No markets with imported data found")
+        return {}
+
+    logger.info(f"Found {len(market_ids)} markets to map: {market_ids}")
+
+    results = {}
+    for market_id in market_ids:
+        try:
+            stats = await map_market(market_id, use_ai=use_ai)
+            results[market_id] = {"status": "success", "stats": stats}
+        except Exception as e:
+            logger.error(f"Failed to map {market_id}: {e}")
+            results[market_id] = {"status": "error", "error": str(e)}
+
+    return results
+
+
+def print_market_list():
+    """Print available markets with their mapping status."""
+    markets = list_available_markets()
+    source_dir = get_source_data_dir()
+
+    print(f"\nSource data directory: {source_dir}")
+    print("-" * 50)
+
+    if not markets:
+        print("No market data found!")
+        print("\nExpected structure:")
+        print("  source_data/")
+        print("  ├── insurance_il/")
+        print("  │   ├── keywords.csv")
+        print("  │   ├── serp.json")
+        print("  │   └── mappings.json  ← Manual mappings (optional)")
+        print("  └── bicycle/")
+        print("      ├── keywords.csv")
+        print("      ├── serp.json")
+        print("      └── mappings.json")
+    else:
+        print(f"Found {len(markets)} market(s):\n")
+        for market in markets:
+            print(f"  • {market}")
+        print("\nTo add manual mappings, create mappings.json in the market folder.")
+        print("Run with --create-example to see the format.")
+
+    print()
+
+
+async def main(
+    market_id: Optional[str] = None,
+    map_all: bool = False,
+    use_ai: bool = True,
+    create_example: bool = False,
+    list_markets: bool = False,
+):
+    """Main entry point."""
+
+    if list_markets:
+        print_market_list()
+        return
+
     if create_example:
-        create_example_manual_mappings_file()
+        target = market_id or "example_market"
+        create_example_mappings_file(target)
         return
 
     if not use_ai:
         logger.warning("AI mapping disabled - will run phases 1 & 2 only")
 
     if settings.anthropic_api_key == "" and use_ai:
-        logger.warning("ANTHROPIC_API_KEY not set - will skip AI phase (phase 3)")
+        logger.warning("ANTHROPIC_API_KEY not set - will skip AI phase")
         use_ai = False
 
-    # Load manual mappings if provided
-    manual_mappings = None
-    if manual_mappings_file:
-        manual_mappings = load_manual_mappings(manual_mappings_file)
+    if map_all:
+        results = await map_all_markets(use_ai=use_ai)
+        print("\n" + "=" * 60)
+        print("MAPPING SUMMARY")
+        print("=" * 60)
+        for market, result in results.items():
+            if result["status"] == "success":
+                stats = result["stats"]
+                print(f"✓ {market}: {stats['total_mappings']} mappings")
+            else:
+                print(f"✗ {market}: {result['error']}")
+        return
+
+    if not market_id:
+        # Try to auto-detect if only one market exists
+        markets = [m.split(" ")[0] for m in list_available_markets() if "data" in m]
+        if len(markets) == 1:
+            market_id = markets[0]
+            logger.info(f"Auto-detected market: {market_id}")
+        else:
+            print("Error: --market is required (or use --all to map all markets)")
+            print("\nAvailable markets:")
+            print_market_list()
+            sys.exit(1)
 
     try:
-        # Initialize database
-        await init_db()
-
-        logger.info("=" * 80)
-        logger.info("Starting comprehensive brand-domain mapping")
-        logger.info("=" * 80)
-
-        if manual_mappings:
-            logger.info(f"Phase 1: Manual mappings ({len(manual_mappings)} domains)")
-        else:
-            logger.info("Phase 1: Manual mappings (skipped - none provided)")
-
-        logger.info("Phase 2: Heuristic matching (brand name in domain)")
-
-        if use_ai:
-            logger.info("Phase 3: AI classification (top 1000 unmapped domains by visibility)")
-        else:
-            logger.info("Phase 3: AI classification (skipped)")
-
-        logger.info("=" * 80)
-
-        # Run comprehensive mapping
-        stats = await run_comprehensive_mapping(
-            manual_mappings=manual_mappings,
-            use_ai=use_ai,
-        )
-
-        # Print results
-        logger.info("")
-        logger.info("=" * 80)
-        logger.info("MAPPING COMPLETE")
-        logger.info("=" * 80)
-        logger.info(f"Phase 1 - Manual mappings:      {stats['manual_mappings']}")
-        logger.info(f"Phase 2 - Heuristic matching:   {stats['heuristic_mappings']}")
-        logger.info(f"Phase 3 - AI classification:    {stats['ai_mappings']}")
-        logger.info(f"Total mappings created:         {stats['total_mappings']}")
-
-        if stats['errors']:
-            logger.warning(f"Errors encountered:             {len(stats['errors'])}")
-            logger.warning("First few errors:")
-            for error in stats['errors'][:5]:
-                logger.warning(f"  - {error}")
-
-        logger.info("=" * 80)
+        await map_market(market_id, use_ai=use_ai)
         logger.info("Brand mapping completed successfully!")
-
     except Exception as e:
         logger.error(f"Brand mapping failed: {e}")
         raise
@@ -267,28 +391,60 @@ async def main(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Comprehensive brand-domain mapping",
+        description="Brand-domain mapping with AI classification",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Run all phases with AI
-  python scripts/map_brands.py
+  python map_brands.py --list                    # List available markets
+  python map_brands.py --market insurance_il     # Map specific market
+  python map_brands.py --all                     # Map all markets
+  python map_brands.py --market insurance_il --no-ai  # Skip AI phase
+  python map_brands.py --create-example          # Create example mappings.json
 
-  # Run without AI (phases 1 & 2 only)
-  python scripts/map_brands.py --no-ai
+Folder structure:
+  source_data/
+  ├── insurance_il/
+  │   ├── keywords.csv      # Keyword data (required)
+  │   ├── serp.json         # SERP rankings (required)
+  │   └── mappings.json     # Manual mappings (optional)
+  └── bicycle/
+      ├── keywords.csv
+      ├── serp.json
+      └── mappings.json
 
-  # Run with manual mappings file
-  python scripts/map_brands.py --manual my_mappings.json
-
-  # Create example manual mappings file
-  python scripts/map_brands.py --create-example
-
-Domain Types:
-  - Brand: Official brand website (e.g., trekbikes.com)
-  - Reseller: Multi-brand retailers (e.g., Amazon, Walmart)
-  - UGC: User-generated content (e.g., Reddit, forums)
-  - 3rd Party: Reviews/news/affiliates (e.g., bikeradar.com)
+mappings.json format:
+  {
+    "geico.com": {
+      "brand_name": "Geico",
+      "domain_type": "Brand",
+      "is_primary": true,
+      "confidence": 1.0
+    },
+    "amazon.com": {
+      "brand_name": "N/A",
+      "domain_type": "Reseller",
+      "is_primary": false,
+      "confidence": 1.0
+    }
+  }
         """
+    )
+    parser.add_argument(
+        "--market",
+        type=str,
+        help="Market ID to map (folder name in source_data/)",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        dest="map_all",
+        help="Map ALL markets found in source_data/",
+    )
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        dest="list_markets",
+        help="List available markets",
     )
     parser.add_argument(
         "--no-ai",
@@ -296,23 +452,19 @@ Domain Types:
         help="Disable AI mapping (skip phase 3)",
     )
     parser.add_argument(
-        "--manual",
-        type=str,
-        metavar="FILE",
-        help="JSON file with manual domain mappings",
-    )
-    parser.add_argument(
         "--create-example",
         action="store_true",
-        help="Create an example manual mappings JSON file and exit",
+        help="Create an example mappings.json file",
     )
 
     args = parser.parse_args()
 
     asyncio.run(
         main(
-            manual_mappings_file=args.manual,
+            market_id=args.market,
+            map_all=args.map_all,
             use_ai=not args.no_ai,
             create_example=args.create_example,
+            list_markets=args.list_markets,
         )
     )
