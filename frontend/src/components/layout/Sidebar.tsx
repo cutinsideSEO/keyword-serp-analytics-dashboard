@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useMarketConfig } from '../../contexts/MarketConfigContext';
 
 interface SidebarProps {
   currentPage?: string;
@@ -41,9 +42,13 @@ export function Sidebar({ currentPage }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { currentMarketId, availableMarkets, setCurrentMarket, config } = useMarketConfig();
 
   // Determine current page from location if not provided
   const activePage = currentPage || location.pathname.split('/')[1] || 'market-overview';
+
+  // Get current market name for display
+  const currentMarket = availableMarkets.find(m => m.id === currentMarketId);
 
   return (
     <motion.aside
@@ -93,6 +98,36 @@ export function Sidebar({ currentPage }: SidebarProps) {
           )}
         </button>
       </div>
+
+      {/* Market Selector */}
+      {availableMarkets.length > 1 && !isCollapsed && (
+        <div className="px-3 pb-4 border-b border-white/10">
+          <label className="block text-xs font-medium text-blue-300 mb-2 px-1">Market</label>
+          <select
+            value={currentMarketId}
+            onChange={(e) => setCurrentMarket(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-white/10 text-white text-sm border border-white/10 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 transition-all"
+          >
+            {availableMarkets.map((market) => (
+              <option key={market.id} value={market.id} className="bg-navy-800 text-white">
+                {market.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Market indicator when collapsed */}
+      {isCollapsed && currentMarket && (
+        <div className="px-3 pb-4 flex justify-center border-b border-white/10">
+          <div
+            className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center text-white font-bold text-xs"
+            title={currentMarket.name}
+          >
+            {currentMarket.name.slice(0, 2).toUpperCase()}
+          </div>
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1">

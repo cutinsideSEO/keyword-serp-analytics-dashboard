@@ -97,46 +97,71 @@ def extract_domain(url: str) -> str:
 class DataImportService:
     """Service for importing data from source files into the database."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, market_id: str = "insurance_il"):
         """
         Initialize the import service.
 
         Args:
             session: SQLAlchemy async session
+            market_id: Market ID to import data into
         """
         self.session = session
+        self.market_id = market_id
         self._category_cache: Dict[str, int] = {}
         self._domain_cache: Dict[str, int] = {}
         self._keyword_cache: Dict[str, int] = {}
 
-    async def clear_all_data(self) -> Dict[str, int]:
+    async def clear_market_data(self) -> Dict[str, int]:
         """
-        Clear all data from the database for fresh import.
+        Clear all data for the current market for fresh import.
 
         Returns:
             Dictionary with counts of deleted records
         """
-        logger.info("Clearing all existing data...")
+        logger.info(f"Clearing all existing data for market: {self.market_id}...")
 
         counts = {}
 
+        # Get keyword IDs for this market for cascading deletes
+        keyword_ids_query = select(Keyword.id).where(Keyword.market_id == self.market_id)
+        result = await self.session.execute(keyword_ids_query)
+        keyword_ids = [row[0] for row in result.all()]
+
+        # Get domain IDs for this market
+        domain_ids_query = select(Domain.id).where(Domain.market_id == self.market_id)
+        result = await self.session.execute(domain_ids_query)
+        domain_ids = [row[0] for row in result.all()]
+
         # Delete in order due to foreign key constraints
-        result = await self.session.execute(delete(SerpResult))
-        counts["serp_results"] = result.rowcount
+        if keyword_ids:
+            result = await self.session.execute(
+                delete(SerpResult).where(SerpResult.keyword_id.in_(keyword_ids))
+            )
+            counts["serp_results"] = result.rowcount
 
-        result = await self.session.execute(delete(KeywordTag))
-        counts["keyword_tags"] = result.rowcount
+            result = await self.session.execute(
+                delete(KeywordTag).where(KeywordTag.keyword_id.in_(keyword_ids))
+            )
+            counts["keyword_tags"] = result.rowcount
 
-        result = await self.session.execute(delete(BrandDomain))
+        result = await self.session.execute(
+            delete(BrandDomain).where(BrandDomain.market_id == self.market_id)
+        )
         counts["brand_domains"] = result.rowcount
 
-        result = await self.session.execute(delete(Keyword))
+        result = await self.session.execute(
+            delete(Keyword).where(Keyword.market_id == self.market_id)
+        )
         counts["keywords"] = result.rowcount
 
-        result = await self.session.execute(delete(Domain))
+        result = await self.session.execute(
+            delete(Domain).where(Domain.market_id == self.market_id)
+        )
         counts["domains"] = result.rowcount
 
-        result = await self.session.execute(delete(Category))
+        result = await self.session.execute(
+            delete(Category).where(Category.market_id == self.market_id)
+        )
         counts["categories"] = result.rowcount
 
         await self.session.commit()
@@ -146,8 +171,19 @@ class DataImportService:
         self._domain_cache.clear()
         self._keyword_cache.clear()
 
-        logger.info(f"Cleared data: {counts}")
+        logger.info(f"Cleared data for market {self.market_id}: {counts}")
         return counts
+
+    async def clear_all_data(self) -> Dict[str, int]:
+        """
+        Clear all data from the database (all markets) for fresh import.
+        DEPRECATED: Use clear_market_data() instead for market-specific clearing.
+
+        Returns:
+            Dictionary with counts of deleted records
+        """
+        logger.warning("clear_all_data() is deprecated. Use clear_market_data() for market-specific clearing.")
+        return await self.clear_market_data()
 
     async def _get_or_create_category(self, name: str, display_name: str) -> int:
         """
@@ -160,21 +196,25 @@ class DataImportService:
         Returns:
             Category ID
         """
-        if name in self._category_cache:
-            return self._category_cache[name]
+        cache_key = f"{self.market_id}:{name}"
+        if cache_key in self._category_cache:
+            return self._category_cache[cache_key]
 
         result = await self.session.execute(
-            select(Category).where(Category.name == name)
+            select(Category).where(
+                Category.market_id == self.market_id,
+                Category.name == name
+            )
         )
         category = result.scalar_one_or_none()
 
         if category is None:
-            category = Category(name=name, display_name=display_name)
+            category = Category(market_id=self.market_id, name=name, display_name=display_name)
             self.session.add(category)
             await self.session.flush()
-            logger.info(f"Created category: {name}")
+            logger.info(f"Created category: {name} for market {self.market_id}")
 
-        self._category_cache[name] = category.id
+        self._category_cache[cache_key] = category.id
         return category.id
 
     async def _get_or_create_domain(self, domain: str) -> int:
@@ -187,20 +227,24 @@ class DataImportService:
         Returns:
             Domain ID
         """
-        if domain in self._domain_cache:
-            return self._domain_cache[domain]
+        cache_key = f"{self.market_id}:{domain}"
+        if cache_key in self._domain_cache:
+            return self._domain_cache[cache_key]
 
         result = await self.session.execute(
-            select(Domain).where(Domain.domain == domain)
+            select(Domain).where(
+                Domain.market_id == self.market_id,
+                Domain.domain == domain
+            )
         )
         db_domain = result.scalar_one_or_none()
 
         if db_domain is None:
-            db_domain = Domain(domain=domain)
+            db_domain = Domain(market_id=self.market_id, domain=domain)
             self.session.add(db_domain)
             await self.session.flush()
 
-        self._domain_cache[domain] = db_domain.id
+        self._domain_cache[cache_key] = db_domain.id
         return db_domain.id
 
     async def _get_or_create_keyword(
@@ -217,11 +261,15 @@ class DataImportService:
         Returns:
             Tuple of (keyword_id, is_new)
         """
-        if keyword in self._keyword_cache:
-            return self._keyword_cache[keyword], False
+        cache_key = f"{self.market_id}:{keyword}"
+        if cache_key in self._keyword_cache:
+            return self._keyword_cache[cache_key], False
 
         result = await self.session.execute(
-            select(Keyword).where(Keyword.keyword == keyword)
+            select(Keyword).where(
+                Keyword.market_id == self.market_id,
+                Keyword.keyword == keyword
+            )
         )
         db_keyword = result.scalar_one_or_none()
 
@@ -229,6 +277,7 @@ class DataImportService:
 
         if is_new:
             db_keyword = Keyword(
+                market_id=self.market_id,
                 keyword=keyword,
                 volume=volume,
                 modifier_group=modifier_group if modifier_group else None,
@@ -236,7 +285,7 @@ class DataImportService:
             self.session.add(db_keyword)
             await self.session.flush()
 
-        self._keyword_cache[keyword] = db_keyword.id
+        self._keyword_cache[cache_key] = db_keyword.id
         return db_keyword.id, is_new
 
     async def import_csv(self, csv_path: Path) -> Dict[str, Any]:
@@ -508,6 +557,7 @@ class DataImportService:
 async def run_full_import(
     csv_path: Path,
     json_path: Path,
+    market_id: str = "insurance_il",
     fresh: bool = True
 ) -> Dict[str, Any]:
     """
@@ -516,18 +566,19 @@ async def run_full_import(
     Args:
         csv_path: Path to keyword CSV file
         json_path: Path to SERP JSON file
+        market_id: Market ID to import data into
         fresh: If True, clear all existing data before import
 
     Returns:
         Combined import statistics
     """
     async with get_db_context() as session:
-        service = DataImportService(session)
+        service = DataImportService(session, market_id=market_id)
 
         # Clear existing data if fresh import
         cleared = {}
         if fresh:
-            cleared = await service.clear_all_data()
+            cleared = await service.clear_market_data()
 
         # Import CSV first (creates keywords)
         csv_stats = await service.import_csv(csv_path)

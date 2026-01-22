@@ -22,6 +22,58 @@ class BaseSchema(BaseModel):
 
 
 # =============================================================================
+# Market Schemas
+# =============================================================================
+
+
+class MarketDomainTypeResponse(BaseSchema):
+    """Domain type configuration for a market."""
+
+    id: str = Field(alias="type_id")
+    display_name: str
+    is_brand_type: bool = False
+    tremor_color: str = "gray"
+    hex_color: str = "#6B7280"
+    gradient: Optional[str] = None
+    bg_class: Optional[str] = None
+    text_class: Optional[str] = None
+    border_class: Optional[str] = None
+    icon: str = "Building2"
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
+class MarketSummary(BaseSchema):
+    """Brief market info for market selector."""
+
+    id: str
+    name: str
+    language: str = "en"
+    text_direction: str = "ltr"
+    is_active: bool = True
+
+
+class MarketConfigResponse(BaseSchema):
+    """Full market configuration response."""
+
+    market_id: str = Field(alias="id")
+    market_name: str = Field(alias="name")
+    industry_context: str
+    language: str = "en"
+    text_direction: str = "ltr"
+    domain_types: List[MarketDomainTypeResponse] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
+class MarketsListResponse(BaseSchema):
+    """List of available markets."""
+
+    markets: List[MarketSummary] = Field(default_factory=list)
+    total: int = 0
+
+
+# =============================================================================
 # Keyword Schemas
 # =============================================================================
 

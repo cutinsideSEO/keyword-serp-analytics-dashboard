@@ -4,12 +4,13 @@ Dashboard API endpoints.
 Provides endpoints for dashboard data aggregation.
 """
 
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.middleware.market_context import get_current_market_id
 from app.schemas import (
     BrandProtectionDashboard,
     BrandProtectionKPIs,
@@ -35,6 +36,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 @router.get("/brand-protection", response_model=BrandProtectionDashboard)
 async def get_brand_protection_dashboard(
     brand: str = Query(..., description="Brand name to analyze"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> BrandProtectionDashboard:
     """
@@ -42,18 +44,21 @@ async def get_brand_protection_dashboard(
 
     Args:
         brand: Brand name to analyze
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         Complete dashboard data including KPIs, wins, losses, and competitors
     """
-    service = AnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = AnalyticsService(db, market_id=effective_market_id)
     return await service.get_brand_protection_dashboard(brand)
 
 
 @router.get("/brand-protection/kpis", response_model=BrandProtectionKPIs)
 async def get_brand_protection_kpis(
     brand: str = Query(..., description="Brand name to analyze"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> BrandProtectionKPIs:
     """
@@ -61,12 +66,14 @@ async def get_brand_protection_kpis(
 
     Args:
         brand: Brand name to analyze
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         KPI metrics for brand protection
     """
-    service = AnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = AnalyticsService(db, market_id=effective_market_id)
     return await service.get_brand_protection_kpis(brand)
 
 
@@ -75,6 +82,7 @@ async def get_brand_protection_wins(
     brand: str = Query(..., description="Brand name to analyze"),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> List[BrandProtectionWin]:
     """
@@ -84,12 +92,14 @@ async def get_brand_protection_wins(
         brand: Brand name to analyze
         limit: Maximum results to return
         offset: Results offset for pagination
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         List of keywords where brand wins
     """
-    service = AnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = AnalyticsService(db, market_id=effective_market_id)
     wins, _ = await service.get_brand_wins(brand, limit=limit, offset=offset)
     return wins
 

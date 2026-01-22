@@ -2,16 +2,16 @@
 Market Overview API endpoints.
 
 Provides endpoints for market-wide analytics dashboard.
-Domain types are configurable per market via market_config.py
+Domain types are configurable per market via database.
 """
 
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.market_config import get_market_config
 from app.database import get_db
+from app.middleware.market_context import get_current_market_id
 from app.schemas import (
     MarketOverviewDashboard,
     ShareOfSearchItem,
@@ -28,12 +28,10 @@ from app.services.market_analytics import MarketAnalyticsService
 
 router = APIRouter(prefix="/dashboard/market-overview", tags=["market-overview"])
 
-# Get market configuration
-market_config = get_market_config()
-
 
 @router.get("", response_model=MarketOverviewDashboard)
 async def get_market_overview_dashboard(
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> MarketOverviewDashboard:
     """
@@ -41,18 +39,21 @@ async def get_market_overview_dashboard(
     Single endpoint that returns all data for upfront loading.
 
     Args:
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         Complete market overview dashboard data
     """
-    service = MarketAnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = MarketAnalyticsService(db, market_id=effective_market_id)
     return await service.get_full_dashboard()
 
 
 @router.get("/share-of-search", response_model=List[ShareOfSearchItem])
 async def get_share_of_search(
     limit: int = Query(20, ge=1, le=100, description="Maximum brands to return"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> List[ShareOfSearchItem]:
     """
@@ -60,12 +61,14 @@ async def get_share_of_search(
 
     Args:
         limit: Maximum brands to return
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         List of brands with their share of search metrics
     """
-    service = MarketAnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = MarketAnalyticsService(db, market_id=effective_market_id)
     return await service.get_share_of_search(limit)
 
 

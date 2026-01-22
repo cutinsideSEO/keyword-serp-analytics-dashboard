@@ -2,10 +2,11 @@
  * Market Configuration Context
  *
  * Provides market configuration (domain types, styling) to all components.
- * Fetches config from backend API on app startup.
+ * Supports multiple markets with market selection.
+ * Fetches config from backend API on app startup and when market changes.
  */
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import {
   MarketConfig,
   DomainTypeConfig,
@@ -17,6 +18,17 @@ import {
   getDomainTypeIcon,
 } from '../config/domainTypes';
 import { LucideIcon } from 'lucide-react';
+
+const STORAGE_KEY = 'selectedMarketId';
+
+// Market summary from /api/markets
+interface MarketSummary {
+  id: string;
+  name: string;
+  language: string;
+  text_direction: string;
+  is_active: boolean;
+}
 
 // Snake_case format matching API response (for components that expect raw API format)
 interface MarketConfigAPI {
@@ -45,6 +57,11 @@ interface MarketConfigContextValue {
   isLoading: boolean;
   loading: boolean; // Alias for isLoading
   error: string | null;
+
+  // Multi-market support
+  currentMarketId: string;
+  availableMarkets: MarketSummary[];
+  setCurrentMarket: (marketId: string) => void;
 
   // Raw API format for components expecting snake_case
   marketConfig: MarketConfigAPI | null;
@@ -79,6 +96,14 @@ export function MarketConfigProvider({ children }: MarketConfigProviderProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Multi-market state
+  const [availableMarkets, setAvailableMarkets] = useState<MarketSummary[]>([]);
+  const [currentMarketId, setCurrentMarketId] = useState<string>(() => {
+    // Try to load from localStorage
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored || 'insurance_il'; // Default market
+  });
+
   // Pre-computed maps for efficient lookups
   const [tremorColorMap, setTremorColorMap] = useState<Record<string, string>>({});
   const [hexColorMap, setHexColorMap] = useState<Record<string, string>>({});
@@ -91,62 +116,88 @@ export function MarketConfigProvider({ children }: MarketConfigProviderProps) {
     icon: LucideIcon;
   }>>({});
 
+  // Fetch available markets on mount
   useEffect(() => {
-    async function fetchConfig() {
+    async function fetchMarkets() {
       try {
-        const response = await fetch('/api/config/market');
-        if (!response.ok) {
-          throw new Error(`Failed to fetch config: ${response.statusText}`);
+        const response = await fetch('/api/markets');
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableMarkets(data.markets || []);
         }
-        const data = await response.json();
-
-        // Store raw API response for components expecting snake_case
-        setMarketConfigAPI(data);
-
-        // Transform API response to match our types
-        const marketConfig: MarketConfig = {
-          marketId: data.market_id,
-          marketName: data.market_name,
-          industryContext: data.industry_context,
-          language: data.language,
-          textDirection: data.text_direction,
-          domainTypes: data.domain_types.map((dt: Record<string, string>) => ({
-            id: dt.id,
-            displayName: dt.display_name,
-            tremorColor: dt.tremor_color,
-            hexColor: dt.hex_color,
-            gradient: dt.gradient,
-            bgClass: dt.bg_class,
-            textClass: dt.text_class,
-            borderClass: dt.border_class,
-            icon: dt.icon,
-          })),
-        };
-
-        setConfig(marketConfig);
-
-        // Build lookup maps
-        setTremorColorMap(buildTremorColorMap(marketConfig.domainTypes));
-        setHexColorMap(buildHexColorMap(marketConfig.domainTypes));
-        setGradientMap(buildGradientMap(marketConfig.domainTypes));
-        setStylesMap(buildStylesMap(marketConfig.domainTypes));
-
-        setError(null);
       } catch (err) {
-        console.error('Failed to load market config, using defaults:', err);
-        setError(err instanceof Error ? err.message : 'Unknown error');
-
-        // Use defaults
-        setTremorColorMap(buildTremorColorMap(DEFAULT_MARKET_CONFIG.domainTypes));
-        setHexColorMap(buildHexColorMap(DEFAULT_MARKET_CONFIG.domainTypes));
-        setGradientMap(buildGradientMap(DEFAULT_MARKET_CONFIG.domainTypes));
-        setStylesMap(buildStylesMap(DEFAULT_MARKET_CONFIG.domainTypes));
-      } finally {
-        setIsLoading(false);
+        console.error('Failed to fetch markets:', err);
       }
     }
+    fetchMarkets();
+  }, []);
 
-    fetchConfig();
+  // Fetch config when market changes
+  const fetchConfig = useCallback(async (marketId: string) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/markets/${marketId}/config`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch config: ${response.statusText}`);
+      }
+      const data = await response.json();
+
+      // Store raw API response for components expecting snake_case
+      setMarketConfigAPI(data);
+
+      // Transform API response to match our types
+      const marketConfig: MarketConfig = {
+        marketId: data.market_id,
+        marketName: data.market_name,
+        industryContext: data.industry_context,
+        language: data.language,
+        textDirection: data.text_direction,
+        domainTypes: data.domain_types.map((dt: Record<string, string>) => ({
+          id: dt.id,
+          displayName: dt.display_name,
+          tremorColor: dt.tremor_color,
+          hexColor: dt.hex_color,
+          gradient: dt.gradient,
+          bgClass: dt.bg_class,
+          textClass: dt.text_class,
+          borderClass: dt.border_class,
+          icon: dt.icon,
+        })),
+      };
+
+      setConfig(marketConfig);
+
+      // Build lookup maps
+      setTremorColorMap(buildTremorColorMap(marketConfig.domainTypes));
+      setHexColorMap(buildHexColorMap(marketConfig.domainTypes));
+      setGradientMap(buildGradientMap(marketConfig.domainTypes));
+      setStylesMap(buildStylesMap(marketConfig.domainTypes));
+
+      setError(null);
+    } catch (err) {
+      console.error('Failed to load market config, using defaults:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error');
+
+      // Use defaults
+      setTremorColorMap(buildTremorColorMap(DEFAULT_MARKET_CONFIG.domainTypes));
+      setHexColorMap(buildHexColorMap(DEFAULT_MARKET_CONFIG.domainTypes));
+      setGradientMap(buildGradientMap(DEFAULT_MARKET_CONFIG.domainTypes));
+      setStylesMap(buildStylesMap(DEFAULT_MARKET_CONFIG.domainTypes));
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Fetch config on mount and when market changes
+  useEffect(() => {
+    fetchConfig(currentMarketId);
+  }, [currentMarketId, fetchConfig]);
+
+  // Function to change market
+  const setCurrentMarket = useCallback((marketId: string) => {
+    localStorage.setItem(STORAGE_KEY, marketId);
+    setCurrentMarketId(marketId);
+    // Config will be refetched via the useEffect
   }, []);
 
   const value: MarketConfigContextValue = {
@@ -155,6 +206,12 @@ export function MarketConfigProvider({ children }: MarketConfigProviderProps) {
     isLoading,
     loading: isLoading, // Alias for isLoading
     error,
+
+    // Multi-market support
+    currentMarketId,
+    availableMarkets,
+    setCurrentMarket,
+
     marketConfig: marketConfigAPI,
 
     getTremorColor: (typeName: string) => tremorColorMap[typeName] || 'gray',

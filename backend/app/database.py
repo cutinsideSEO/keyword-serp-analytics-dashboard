@@ -2,6 +2,7 @@
 Database connection and session management.
 
 Provides async SQLAlchemy engine and session factory for database operations.
+Supports both SQLite (local dev) and PostgreSQL (Supabase production).
 """
 
 from contextlib import asynccontextmanager
@@ -9,16 +10,33 @@ from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool
 
 from app.config import get_settings
 
 settings = get_settings()
 
+# Configure engine based on database type
+engine_kwargs = {
+    "echo": settings.debug,
+    "future": True,
+}
+
+# PostgreSQL/Supabase specific settings
+if settings.is_supabase:
+    engine_kwargs.update({
+        # Use NullPool for serverless environments (Supabase)
+        "poolclass": NullPool,
+        # SSL settings for Supabase
+        "connect_args": {
+            "ssl": "require",
+        },
+    })
+
 # Create async engine
 engine = create_async_engine(
     settings.database_url,
-    echo=settings.debug,
-    future=True,
+    **engine_kwargs,
 )
 
 # Session factory

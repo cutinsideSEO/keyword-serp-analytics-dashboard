@@ -4,6 +4,7 @@ Analytics service for computing dashboard metrics.
 Provides methods for calculating brand protection metrics and other analytics.
 """
 
+import json
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -17,12 +18,10 @@ from app.models import (
     Domain,
     Keyword,
     KeywordTag,
+    Market,
     SerpResult,
 )
-from app.market_config import get_market_config
-
-# Get market configuration
-market_config = get_market_config()
+from app.middleware.market_context import get_current_market_id
 from app.schemas import (
     BrandProtectionDashboard,
     BrandProtectionKPIs,
@@ -58,32 +57,53 @@ logger = logging.getLogger(__name__)
 class AnalyticsService:
     """Service for computing analytics and dashboard data."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, market_id: Optional[str] = None):
         """
         Initialize the analytics service.
 
         Args:
             session: SQLAlchemy async session
+            market_id: Market ID (optional, uses context default if not provided)
         """
         self.session = session
+        self.market_id = market_id or get_current_market_id()
         self._brand_category_ids: Optional[List[int]] = None
+        self._brand_category_names: Optional[List[str]] = None
+
+    async def _get_brand_category_names(self) -> List[str]:
+        """Get brand category names from database (cached)."""
+        if self._brand_category_names is None:
+            result = await self.session.execute(
+                select(Market.brand_category_names).where(Market.id == self.market_id)
+            )
+            row = result.scalar_one_or_none()
+
+            if row:
+                try:
+                    self._brand_category_names = json.loads(row)
+                except (json.JSONDecodeError, TypeError):
+                    self._brand_category_names = ["brand"]
+            else:
+                self._brand_category_names = ["brand"]
+
+        return self._brand_category_names
 
     async def _get_brand_category_ids(self) -> List[int]:
         """Get the brand category IDs based on market config (cached)."""
         if self._brand_category_ids is None:
-            # Get category names from market config
-            brand_category_names = market_config.brand_category_names
-            if not brand_category_names:
-                # Fallback to "brand" for backward compatibility
-                brand_category_names = ["brand"]
+            # Get category names from database
+            brand_category_names = await self._get_brand_category_names()
 
             result = await self.session.execute(
-                select(Category.id).where(Category.name.in_(brand_category_names))
+                select(Category.id).where(
+                    Category.market_id == self.market_id,
+                    Category.name.in_(brand_category_names)
+                )
             )
             self._brand_category_ids = [row[0] for row in result.fetchall()]
 
             if not self._brand_category_ids:
-                logger.warning(f"No brand categories found for names: {brand_category_names}")
+                logger.warning(f"No brand categories found for market {self.market_id}: {brand_category_names}")
                 self._brand_category_ids = []
         return self._brand_category_ids
 
@@ -99,6 +119,7 @@ class AnalyticsService:
         """
         result = await self.session.execute(
             select(BrandDomain.domain_id).where(
+                BrandDomain.market_id == self.market_id,
                 BrandDomain.brand_name == brand_name,
                 BrandDomain.is_primary == True,
             )
@@ -109,6 +130,7 @@ class AnalyticsService:
         if not domain_ids:
             result = await self.session.execute(
                 select(BrandDomain.domain_id).where(
+                    BrandDomain.market_id == self.market_id,
                     BrandDomain.brand_name == brand_name
                 )
             )
@@ -131,8 +153,12 @@ class AnalyticsService:
         if not brand_category_ids:
             return []
 
+        # Join with Keyword to filter by market_id
         result = await self.session.execute(
-            select(KeywordTag.keyword_id).where(
+            select(KeywordTag.keyword_id)
+            .join(Keyword, KeywordTag.keyword_id == Keyword.id)
+            .where(
+                Keyword.market_id == self.market_id,
                 KeywordTag.category_id.in_(brand_category_ids),
                 KeywordTag.value == brand_name,
             )

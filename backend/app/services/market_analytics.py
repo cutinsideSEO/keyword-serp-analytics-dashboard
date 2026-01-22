@@ -4,9 +4,10 @@ Market Analytics Service
 Provides market-wide analytics independent of any single brand.
 All methods operate on the entire dataset to give market overview.
 
-Domain types are configurable per market via market_config.py
+Domain types are configurable per market via database.
 """
 
+import json
 import logging
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -14,18 +15,16 @@ from sqlalchemy import and_, case, distinct, func, or_, select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.market_config import get_market_config
 from app.models import (
     BrandDomain,
     Category,
     Domain,
     Keyword,
     KeywordTag,
+    Market,
     SerpResult,
 )
-
-# Get market configuration
-market_config = get_market_config()
+from app.middleware.market_context import get_current_market_id
 from app.schemas import (
     ShareOfSearchItem,
     DomainVisibilityItem,
@@ -46,32 +45,53 @@ logger = logging.getLogger(__name__)
 class MarketAnalyticsService:
     """Service for computing market-wide analytics and dashboard data."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, market_id: Optional[str] = None):
         """
         Initialize the market analytics service.
 
         Args:
             session: SQLAlchemy async session
+            market_id: Market ID (optional, uses context default if not provided)
         """
         self.session = session
+        self.market_id = market_id or get_current_market_id()
         self._brand_category_ids: Optional[List[int]] = None
+        self._brand_category_names: Optional[List[str]] = None
+
+    async def _get_brand_category_names(self) -> List[str]:
+        """Get brand category names from database (cached)."""
+        if self._brand_category_names is None:
+            result = await self.session.execute(
+                select(Market.brand_category_names).where(Market.id == self.market_id)
+            )
+            row = result.scalar_one_or_none()
+
+            if row:
+                try:
+                    self._brand_category_names = json.loads(row)
+                except (json.JSONDecodeError, TypeError):
+                    self._brand_category_names = ["brand"]
+            else:
+                self._brand_category_names = ["brand"]
+
+        return self._brand_category_names
 
     async def _get_brand_category_ids(self) -> List[int]:
         """Get the brand category IDs based on market config (cached)."""
         if self._brand_category_ids is None:
-            # Get category names from market config
-            brand_category_names = market_config.brand_category_names
-            if not brand_category_names:
-                # Fallback to "brand" for backward compatibility
-                brand_category_names = ["brand"]
+            # Get category names from database
+            brand_category_names = await self._get_brand_category_names()
 
             result = await self.session.execute(
-                select(Category.id).where(Category.name.in_(brand_category_names))
+                select(Category.id).where(
+                    Category.market_id == self.market_id,
+                    Category.name.in_(brand_category_names)
+                )
             )
             self._brand_category_ids = [row[0] for row in result.fetchall()]
 
             if not self._brand_category_ids:
-                logger.warning(f"No brand categories found for names: {brand_category_names}")
+                logger.warning(f"No brand categories found for market {self.market_id}: {brand_category_names}")
                 self._brand_category_ids = []
         return self._brand_category_ids
 
