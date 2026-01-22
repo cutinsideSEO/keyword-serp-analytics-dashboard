@@ -39,6 +39,7 @@ class MarketConfig:
     market_name: str
     industry_context: str  # Used in AI prompts
     domain_types: List[DomainType]
+    brand_category_names: List[str] = field(default_factory=list)  # Category names to treat as "brands"
     language: str = "en"
     text_direction: str = "ltr"  # ltr or rtl
 
@@ -101,6 +102,7 @@ INSURANCE_IL_CONFIG = MarketConfig(
     industry_context="insurance industry in Israel",
     language="he",
     text_direction="rtl",  # Hebrew keywords are RTL
+    brand_category_names=["insurance_company___canonical", "comparison_platform___canonical"],
     domain_types=[
         DomainType(
             id="insurance_company",
@@ -168,6 +170,7 @@ BICYCLE_CONFIG = MarketConfig(
     industry_context="bicycle/cycling industry",
     language="en",
     text_direction="ltr",
+    brand_category_names=["brand"],  # Original bicycle dataset uses "brand" category
     domain_types=[
         DomainType(
             id="brand",

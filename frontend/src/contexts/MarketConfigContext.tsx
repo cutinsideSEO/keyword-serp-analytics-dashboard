@@ -18,11 +18,36 @@ import {
 } from '../config/domainTypes';
 import { LucideIcon } from 'lucide-react';
 
+// Snake_case format matching API response (for components that expect raw API format)
+interface MarketConfigAPI {
+  market_id: string;
+  market_name: string;
+  industry_context: string;
+  language: string;
+  text_direction: string;
+  domain_types: Array<{
+    id: string;
+    display_name: string;
+    tremor_color: string;
+    hex_color: string;
+    gradient: string;
+    bg_class: string;
+    text_class: string;
+    border_class: string;
+    icon: string;
+    is_brand_type: boolean;
+  }>;
+}
+
 interface MarketConfigContextValue {
   config: MarketConfig;
   domainTypes: DomainTypeConfig[];
   isLoading: boolean;
+  loading: boolean; // Alias for isLoading
   error: string | null;
+
+  // Raw API format for components expecting snake_case
+  marketConfig: MarketConfigAPI | null;
 
   // Helper functions for easy access
   getTremorColor: (typeName: string) => string;
@@ -50,6 +75,7 @@ interface MarketConfigProviderProps {
 
 export function MarketConfigProvider({ children }: MarketConfigProviderProps) {
   const [config, setConfig] = useState<MarketConfig>(DEFAULT_MARKET_CONFIG);
+  const [marketConfigAPI, setMarketConfigAPI] = useState<MarketConfigAPI | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,6 +99,9 @@ export function MarketConfigProvider({ children }: MarketConfigProviderProps) {
           throw new Error(`Failed to fetch config: ${response.statusText}`);
         }
         const data = await response.json();
+
+        // Store raw API response for components expecting snake_case
+        setMarketConfigAPI(data);
 
         // Transform API response to match our types
         const marketConfig: MarketConfig = {
@@ -124,7 +153,9 @@ export function MarketConfigProvider({ children }: MarketConfigProviderProps) {
     config,
     domainTypes: config.domainTypes,
     isLoading,
+    loading: isLoading, // Alias for isLoading
     error,
+    marketConfig: marketConfigAPI,
 
     getTremorColor: (typeName: string) => tremorColorMap[typeName] || 'gray',
     getHexColor: (typeName: string) => hexColorMap[typeName] || '#6B7280',

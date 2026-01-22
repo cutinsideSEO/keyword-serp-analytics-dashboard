@@ -54,16 +54,26 @@ class MarketAnalyticsService:
             session: SQLAlchemy async session
         """
         self.session = session
-        self._brand_category_id: Optional[int] = None
+        self._brand_category_ids: Optional[List[int]] = None
 
-    async def _get_brand_category_id(self) -> int:
-        """Get the brand category ID (cached)."""
-        if self._brand_category_id is None:
+    async def _get_brand_category_ids(self) -> List[int]:
+        """Get the brand category IDs based on market config (cached)."""
+        if self._brand_category_ids is None:
+            # Get category names from market config
+            brand_category_names = market_config.brand_category_names
+            if not brand_category_names:
+                # Fallback to "brand" for backward compatibility
+                brand_category_names = ["brand"]
+
             result = await self.session.execute(
-                select(Category.id).where(Category.name == "brand")
+                select(Category.id).where(Category.name.in_(brand_category_names))
             )
-            self._brand_category_id = result.scalar_one()
-        return self._brand_category_id
+            self._brand_category_ids = [row[0] for row in result.fetchall()]
+
+            if not self._brand_category_ids:
+                logger.warning(f"No brand categories found for names: {brand_category_names}")
+                self._brand_category_ids = []
+        return self._brand_category_ids
 
     async def get_share_of_search(self, limit: int = 20) -> List[ShareOfSearchItem]:
         """
@@ -76,14 +86,17 @@ class MarketAnalyticsService:
         Returns:
             List of ShareOfSearchItem ordered by total_volume descending
         """
-        brand_category_id = await self._get_brand_category_id()
+        brand_category_ids = await self._get_brand_category_ids()
+
+        if not brand_category_ids:
+            return []
 
         # Get total market volume for percentage calculation
         total_market_query = (
             select(func.sum(Keyword.volume))
             .select_from(Keyword)
             .join(KeywordTag, Keyword.id == KeywordTag.keyword_id)
-            .where(KeywordTag.category_id == brand_category_id)
+            .where(KeywordTag.category_id.in_(brand_category_ids))
         )
         total_result = await self.session.execute(total_market_query)
         total_market_volume = total_result.scalar() or 1
@@ -97,7 +110,7 @@ class MarketAnalyticsService:
             )
             .select_from(Keyword)
             .join(KeywordTag, Keyword.id == KeywordTag.keyword_id)
-            .where(KeywordTag.category_id == brand_category_id)
+            .where(KeywordTag.category_id.in_(brand_category_ids))
             .group_by(KeywordTag.value)
             .order_by(func.sum(Keyword.volume).desc())
             .limit(limit)
@@ -219,6 +232,7 @@ class MarketAnalyticsService:
             domain, dtype, visibility_score, ranking_count, total_volume, win_count, avg_position = row
 
             # Get top 3 brands this domain appears on
+            brand_cat_ids = await self._get_brand_category_ids()
             brands_query = (
                 select(KeywordTag.value)
                 .select_from(SerpResult)
@@ -227,7 +241,7 @@ class MarketAnalyticsService:
                 .join(Domain, SerpResult.domain_id == Domain.id)
                 .where(
                     Domain.domain == domain,
-                    KeywordTag.category_id == await self._get_brand_category_id()
+                    KeywordTag.category_id.in_(brand_cat_ids) if brand_cat_ids else False
                 )
                 .group_by(KeywordTag.value)
                 .order_by(func.count(distinct(Keyword.id)).desc())
@@ -259,13 +273,16 @@ class MarketAnalyticsService:
         Returns:
             MarketProtectionKPIs with aggregate metrics
         """
-        brand_category_id = await self._get_brand_category_id()
+        brand_category_ids = await self._get_brand_category_ids()
+
+        if not brand_category_ids:
+            return MarketProtectionKPIs()
 
         # Get all brands with at least 10 keywords
         brands_query = (
             select(KeywordTag.value.label("brand_name"))
             .select_from(KeywordTag)
-            .where(KeywordTag.category_id == brand_category_id)
+            .where(KeywordTag.category_id.in_(brand_category_ids))
             .group_by(KeywordTag.value)
             .having(func.count(distinct(KeywordTag.keyword_id)) >= 10)
         )
@@ -292,7 +309,7 @@ class MarketAnalyticsService:
                 .select_from(Keyword)
                 .join(KeywordTag, Keyword.id == KeywordTag.keyword_id)
                 .where(
-                    KeywordTag.category_id == brand_category_id,
+                    KeywordTag.category_id.in_(brand_category_ids),
                     KeywordTag.value == brand_name
                 )
             )
@@ -411,12 +428,15 @@ class MarketAnalyticsService:
         Returns:
             List of MarketLossDistribution ordered by loss_volume descending
         """
-        brand_category_id = await self._get_brand_category_id()
+        brand_category_ids = await self._get_brand_category_ids()
+
+        if not brand_category_ids:
+            return []
 
         # Get all branded keywords
         branded_keywords_query = (
             select(KeywordTag.keyword_id, KeywordTag.value)
-            .where(KeywordTag.category_id == brand_category_id)
+            .where(KeywordTag.category_id.in_(brand_category_ids))
         )
         branded_result = await self.session.execute(branded_keywords_query)
         branded_keywords = {}  # keyword_id: brand_name
@@ -545,12 +565,15 @@ class MarketAnalyticsService:
         Returns:
             List of BrandLossItem ordered by volume_lost descending
         """
-        brand_category_id = await self._get_brand_category_id()
+        brand_category_ids = await self._get_brand_category_ids()
+
+        if not brand_category_ids:
+            return []
 
         # Get all brands with keywords
         brands_query = (
             select(KeywordTag.value.label("brand_name"))
-            .where(KeywordTag.category_id == brand_category_id)
+            .where(KeywordTag.category_id.in_(brand_category_ids))
             .group_by(KeywordTag.value)
             .having(func.count(distinct(KeywordTag.keyword_id)) >= 10)
         )
@@ -570,7 +593,7 @@ class MarketAnalyticsService:
                 .select_from(Keyword)
                 .join(KeywordTag, Keyword.id == KeywordTag.keyword_id)
                 .where(
-                    KeywordTag.category_id == brand_category_id,
+                    KeywordTag.category_id.in_(brand_category_ids),
                     KeywordTag.value == brand_name
                 )
             )

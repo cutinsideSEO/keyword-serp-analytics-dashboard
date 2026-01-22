@@ -67,9 +67,12 @@ export async function getBrand(brandName: string): Promise<BrandWithDomains> {
   return response.data;
 }
 
+// Alias for getBrand
+export const getBrandDetails = getBrand;
+
 export async function updateBrandDomains(
   brandName: string,
-  domains: Array<{ domain: string; is_primary: boolean }>
+  domains: Array<{ domain: string; is_primary: boolean; domain_type?: string }>
 ): Promise<BrandWithDomains> {
   const response = await apiClient.put<BrandWithDomains>(
     `/brands/${encodeURIComponent(brandName)}/domains`,

@@ -4,7 +4,7 @@
  * Provides market-wide analytics without brand selection.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Grid, Title, Text } from '@tremor/react';
 import { Globe, TrendingUp } from 'lucide-react';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
@@ -16,12 +16,35 @@ import { BiggestLosersTable } from '../components/dashboard/BiggestLosersTable';
 import { CategoryExplorer } from '../components/dashboard/CategoryExplorer';
 import { ModifierGroupExplorer } from '../components/dashboard/ModifierGroupExplorer';
 import { getMarketOverviewDashboard } from '../api/endpoints';
+import { useMarketConfig } from '../contexts/MarketConfigContext';
 import type { MarketOverviewDashboard } from '../types';
 
 export function MarketOverview() {
   const [data, setData] = useState<MarketOverviewDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { marketConfig } = useMarketConfig();
+
+  // Get all non-brand domain types for dynamic section display
+  const nonBrandDomainTypes = useMemo(() => {
+    if (!marketConfig?.domain_types) return [];
+    return marketConfig.domain_types
+      .filter(dt => !dt.is_brand_type)
+      .map(dt => dt.display_name);
+  }, [marketConfig]);
+
+  // Combine all visibility data into one array for filtering
+  const allTopPlayers = useMemo(() => {
+    if (!data) return [];
+    // Combine top_retailers and influential_voices, remove duplicates by domain
+    const combined = [...(data.top_retailers || []), ...(data.influential_voices || [])];
+    const seen = new Set<string>();
+    return combined.filter(item => {
+      if (seen.has(item.domain)) return false;
+      seen.add(item.domain);
+      return true;
+    }).sort((a, b) => b.visibility_score - a.visibility_score);
+  }, [data]);
 
   useEffect(() => {
     loadDashboard();
@@ -126,24 +149,35 @@ export function MarketOverview() {
         <ShareOfSearchChart data={data.share_of_search} topN={10} />
       </section>
 
-      {/* Strongest Players Section */}
+      {/* Strongest Players Section - Dynamic based on market config */}
       <section>
         <Title className="text-2xl font-bold mb-4">Strongest Market Players</Title>
-        <Grid numItems={1} numItemsMd={2} className="gap-6">
+        <Text className="text-gray-600 mb-6">
+          Top domains by visibility score (sum of volume/rank) across all keywords, grouped by domain type
+        </Text>
+
+        {/* Overall Top Players */}
+        <div className="mb-6">
           <DomainVisibilitySection
-            title="Top Retailers"
-            subtitle="Resellers with strongest visibility"
-            data={data.top_retailers}
-            variant="retailer"
+            title="Overall Top Players"
+            subtitle="Highest visibility domains across all types"
+            data={allTopPlayers}
             limit={5}
           />
-          <DomainVisibilitySection
-            title="Influential Voices"
-            subtitle="UGC & 3rd Party shapers"
-            data={data.influential_voices}
-            variant="influencer"
-            limit={5}
-          />
+        </div>
+
+        {/* Dynamic sections for each non-brand domain type */}
+        <Grid numItems={1} numItemsMd={nonBrandDomainTypes.length >= 3 ? 3 : 2} className="gap-6">
+          {nonBrandDomainTypes.map((domainType) => (
+            <DomainVisibilitySection
+              key={domainType}
+              title={`Top ${domainType}`}
+              subtitle={`${domainType} domains with strongest visibility`}
+              data={allTopPlayers}
+              domainTypes={[domainType]}
+              limit={5}
+            />
+          ))}
         </Grid>
       </section>
 

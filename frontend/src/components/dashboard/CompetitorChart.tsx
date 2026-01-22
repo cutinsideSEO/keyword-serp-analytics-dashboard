@@ -5,7 +5,7 @@
 
 import { motion } from 'framer-motion';
 import { BarChart } from '@tremor/react';
-import { TrendingDown } from 'lucide-react';
+import { TrendingDown, ExternalLink } from 'lucide-react';
 import type { CompetitorStats } from '../../types';
 import { formatCompactNumber, formatNumber } from '../../utils/formatters';
 import { InfoTooltip } from '../common/InfoTooltip';

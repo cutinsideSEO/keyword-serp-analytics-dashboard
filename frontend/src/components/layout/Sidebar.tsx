@@ -26,6 +26,7 @@ const navigationItems = [
   { id: 'market-overview', label: 'Market Overview', icon: Globe, href: '/market-overview', active: true },
   { id: 'brand-protection', label: 'Brand Protection', icon: Shield, href: '/brand-protection', active: true },
   { id: 'category-opportunities', label: 'Category Opportunities', icon: Layers, href: '/category-opportunities', active: true },
+  { id: 'config', label: 'Configuration', icon: Settings, href: '/config', active: true },
   { id: 'categories', label: 'Categories', icon: LayoutDashboard, comingSoon: true },
   { id: 'competitors', label: 'Competitors', icon: Users, comingSoon: true },
   { id: 'trends', label: 'Trends', icon: TrendingUp, comingSoon: true },

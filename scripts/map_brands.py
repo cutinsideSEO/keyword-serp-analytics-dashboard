@@ -11,7 +11,30 @@ Usage:
     python scripts/map_brands.py --no-ai                            # Skip AI phase
     python scripts/map_brands.py --manual manual_mappings.json     # With manual mappings file
 """
-
+##COMPETITORS = [
+  ##  # מתחרים ישירים (השוואת ביטוחים):
+   # "bestie.co.il",        # בסטי
+   # "shukabit.co.il",       # שוק הביטוח
+    #"hova.co.il",           # הובה
+    #"wobi.co.il",           # וובי
+    #"trusty.co.il",         # טראסטי
+    # לא ישירים (חברות ביטוח):
+    #"we-sure.co.il",        # wesure
+    #"555.co.il",            # ביטוח ישיר
+    #"lbr.co.il",            # ליברה
+    #"aig.co.il",            # AIG
+    #"clalbit.co.il",        # כלל ביטוח
+    #"menoramivt.co.il",     # מנורה
+    #"harel-group.co.il",    # הראל
+    #"fnx.co.il",            # הפניקס
+    #"9000000.co.il",        # ביטוח 9
+    #"pool.org.il",          # הפול ביטוח
+    #"migdal.co.il",         # מגדל
+    #"shlomo-bit.co.il",     # שלמה
+    #"ayalon-ins.co.il",     # איילון
+    #"passportcard.co.il",   # פספורטכארד
+    #"hcsra.co.il",          # הכשרה
+#]
 import argparse
 import asyncio
 import json

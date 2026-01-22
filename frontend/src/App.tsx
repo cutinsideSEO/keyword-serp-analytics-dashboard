@@ -9,6 +9,7 @@ import { MarketConfigProvider } from './contexts/MarketConfigContext';
 import { MarketOverview } from './pages/MarketOverview';
 import { BrandProtection } from './pages/BrandProtection';
 import { CategoryOpportunities } from './pages/CategoryOpportunities';
+import { Config } from './pages/Config';
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
                   <Route path="/market-overview" element={<MarketOverview />} />
                   <Route path="/brand-protection" element={<BrandProtection />} />
                   <Route path="/category-opportunities" element={<CategoryOpportunities />} />
+                  <Route path="/config" element={<Config />} />
                   <Route path="/" element={<Navigate to="/market-overview" replace />} />
                 </Routes>
               </ErrorBoundary>

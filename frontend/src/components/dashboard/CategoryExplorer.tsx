@@ -84,20 +84,39 @@ export function CategoryExplorer({ data }: CategoryExplorerProps) {
   };
 
   // Get top domain for each type from a value
+  // Maps hardcoded API fields to market config domain types
   const getTopDomainsByType = (value: CategoryValueMarketStats) => {
     const domains: { type: string; domain: string; visibility: number }[] = [];
+    const domainTypes = getDomainTypeNames();
 
+    // Find the brand type (is_brand_type: true in market config)
+    const brandType = domainTypes.find(t =>
+      t.toLowerCase().includes('brand') ||
+      t.toLowerCase().includes('company') ||
+      t.toLowerCase().includes('insurance')
+    ) || domainTypes[0];
+
+    // Find the primary non-brand type (first non-brand: Comparison Site, Reseller, etc.)
+    const nonBrandTypes = domainTypes.filter(t => t !== brandType);
+    const primaryType = nonBrandTypes[0] || 'Reseller';
+
+    // Map API fields to domain types
     if (value.top_brand_domain) {
-      domains.push({ type: 'Brand', domain: value.top_brand_domain, visibility: value.top_brand_visibility || 0 });
+      domains.push({ type: brandType, domain: value.top_brand_domain, visibility: value.top_brand_visibility || 0 });
     }
     if (value.top_retailer_domain) {
-      domains.push({ type: 'Reseller', domain: value.top_retailer_domain, visibility: value.top_retailer_visibility || 0 });
+      // Map "retailer" to first non-brand type (Comparison Site or Reseller)
+      domains.push({ type: primaryType, domain: value.top_retailer_domain, visibility: value.top_retailer_visibility || 0 });
     }
     if (value.top_ugc_domain) {
-      domains.push({ type: 'UGC', domain: value.top_ugc_domain, visibility: value.top_ugc_visibility || 0 });
+      // UGC is usually consistent across markets
+      const ugcType = nonBrandTypes.find(t => t.toLowerCase().includes('ugc')) || 'UGC';
+      domains.push({ type: ugcType, domain: value.top_ugc_domain, visibility: value.top_ugc_visibility || 0 });
     }
     if (value.top_3rd_party_domain) {
-      domains.push({ type: '3rd Party', domain: value.top_3rd_party_domain, visibility: value.top_3rd_party_visibility || 0 });
+      // 3rd Party is usually consistent across markets
+      const thirdPartyType = nonBrandTypes.find(t => t.toLowerCase().includes('3rd') || t.toLowerCase().includes('party')) || '3rd Party';
+      domains.push({ type: thirdPartyType, domain: value.top_3rd_party_domain, visibility: value.top_3rd_party_visibility || 0 });
     }
 
     return domains;
