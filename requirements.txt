@@ -1,0 +1,26 @@
+# Vercel Python runtime dependencies
+# This file is used by Vercel to install dependencies for the API
+
+# Web Framework
+fastapi==0.109.0
+
+# Database
+sqlalchemy==2.0.25
+asyncpg>=0.29.0
+
+# Data Processing
+pandas==2.1.4
+orjson==3.9.12
+
+# Validation
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# HTTP Client
+httpx==0.26.0
+
+# Claude API (for brand mapping if needed)
+anthropic==0.43.0
+
+# Environment
+python-dotenv==1.0.0

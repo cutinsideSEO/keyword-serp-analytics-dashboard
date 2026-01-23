@@ -35,8 +35,12 @@ class Settings(BaseSettings):
     # Market
     default_market_id: str = "insurance_il"
 
-    # CORS
+    # CORS - configure via CORS_ORIGINS env var as JSON array
+    # Example: CORS_ORIGINS=["http://localhost:5173","https://your-app.vercel.app"]
     cors_origins: List[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+    # Set to true in production to allow all origins (simpler for Vercel)
+    cors_allow_all: bool = False
 
     # Claude API
     anthropic_api_key: str = ""
