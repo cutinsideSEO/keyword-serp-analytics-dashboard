@@ -47,7 +47,14 @@ htmlcov/
 # Source data (large files - keep structure, exclude data)
 source_data/**/*.csv
 source_data/**/*.json
+!source_data/**/config.json
 !source_data/README.md
+
+# Claude Code
+.claude/
+
+# Playwright screenshots
+.playwright-mcp/
 
 # Misc
 *.bak
