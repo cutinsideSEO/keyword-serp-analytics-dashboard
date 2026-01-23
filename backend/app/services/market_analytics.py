@@ -22,6 +22,7 @@ from app.models import (
     Keyword,
     KeywordTag,
     Market,
+    MarketDomainType,
     SerpResult,
 )
 from app.middleware.market_context import get_current_market_id
@@ -57,6 +58,36 @@ class MarketAnalyticsService:
         self.market_id = market_id or get_current_market_id()
         self._brand_category_ids: Optional[List[int]] = None
         self._brand_category_names: Optional[List[str]] = None
+        self._domain_types_cache: Optional[List[MarketDomainType]] = None
+
+    async def _get_domain_types(self) -> List[MarketDomainType]:
+        """Get all domain types for this market (cached)."""
+        if self._domain_types_cache is None:
+            result = await self.session.execute(
+                select(MarketDomainType)
+                .where(MarketDomainType.market_id == self.market_id)
+                .order_by(MarketDomainType.sort_order)
+            )
+            self._domain_types_cache = list(result.scalars().all())
+        return self._domain_types_cache
+
+    async def get_domain_type_names(self) -> List[str]:
+        """Get all domain type display names for this market."""
+        domain_types = await self._get_domain_types()
+        return [dt.display_name for dt in domain_types]
+
+    async def get_non_brand_type_names(self) -> List[str]:
+        """Get names of non-brand domain types for this market."""
+        domain_types = await self._get_domain_types()
+        return [dt.display_name for dt in domain_types if not dt.is_brand_type]
+
+    async def get_brand_type_name(self) -> str:
+        """Get the brand domain type name for this market."""
+        domain_types = await self._get_domain_types()
+        for dt in domain_types:
+            if dt.is_brand_type:
+                return dt.display_name
+        return "Brand"  # Default fallback
 
     async def _get_brand_category_names(self) -> List[str]:
         """Get brand category names from database (cached)."""
@@ -628,8 +659,7 @@ class MarketAnalyticsService:
 
             # Get brand domains (all domains, not just primary)
             # Use brand type from market config
-            brand_type = market_config.get_brand_type()
-            brand_type_name = brand_type.display_name if brand_type else "Brand"
+            brand_type_name = await self.get_brand_type_name()
             domains_query = (
                 select(BrandDomain.domain_id)
                 .where(
@@ -928,7 +958,8 @@ class MarketAnalyticsService:
 
         # Get top players by type (same approach as modifier groups - uses optimized bulk query)
         top_players_by_type = {}
-        for dtype in market_config.get_domain_type_names():
+        domain_type_names = await self.get_domain_type_names()
+        for dtype in domain_type_names:
             players = await self.get_domain_visibility_by_type(dtype, limit=5)
             top_players_by_type[dtype] = players
 
@@ -1067,7 +1098,8 @@ class MarketAnalyticsService:
 
         # Get top players by type
         top_players_by_type = {}
-        for dtype in market_config.get_domain_type_names():
+        domain_type_names = await self.get_domain_type_names()
+        for dtype in domain_type_names:
             players = await self.get_domain_visibility_by_type(dtype, limit=5)
             top_players_by_type[dtype] = players
 
@@ -1104,8 +1136,8 @@ class MarketAnalyticsService:
         # Fetch all components
         share_of_search = await self.get_share_of_search(limit=20)
 
-        # Get non-brand domain types from config
-        non_brand_types = market_config.get_non_brand_type_names()
+        # Get non-brand domain types from database
+        non_brand_types = await self.get_non_brand_type_names()
 
         # First non-brand type is treated as "retailers" (e.g., Comparison Site, Reseller)
         # Remaining types are treated as "influential voices" (e.g., UGC, 3rd Party)

@@ -1,0 +1,69 @@
+{
+  "market": {
+    "name": "Israeli Insurance Market",
+    "industry_context": "Insurance industry in Israel including car insurance, health insurance, life insurance, travel insurance, home insurance, and various insurance comparison services",
+    "language": "he",
+    "text_direction": "rtl",
+    "brand_category_names": ["Insurance Company - Canonical"]
+  },
+  "domain_types": [
+    {
+      "type_id": "insurance_company",
+      "display_name": "Insurance Company",
+      "ai_description": "Official insurance company website selling their own insurance products directly. These are licensed insurance carriers.",
+      "is_brand_type": true,
+      "color": "blue",
+      "icon": "Building2",
+      "examples": [
+        "digital.harel-group.co.il",
+        "www.555.co.il",
+        "www.migdal.co.il",
+        "my.fnx.co.il",
+        "www.clalbit.co.il",
+        "menoramivt.co.il",
+        "aig.co.il"
+      ]
+    },
+    {
+      "type_id": "comparison_site",
+      "display_name": "Comparison Site",
+      "ai_description": "Insurance price comparison platforms that aggregate quotes from multiple insurance companies. Not insurance carriers themselves.",
+      "is_brand_type": false,
+      "color": "purple",
+      "icon": "Scale",
+      "examples": [
+        "wobi.co.il",
+        "bestie.co.il",
+        "hova.co.il",
+        "shukabit.co.il",
+        "trusty.co.il"
+      ]
+    },
+    {
+      "type_id": "ugc",
+      "display_name": "UGC",
+      "ai_description": "User-generated content platforms including forums, Q&A sites, social media, and community discussion sites",
+      "is_brand_type": false,
+      "color": "amber",
+      "icon": "Users",
+      "examples": [
+        "reddit.com",
+        "fxp.co.il",
+        "quora.com"
+      ]
+    },
+    {
+      "type_id": "3rd_party",
+      "display_name": "3rd Party",
+      "ai_description": "Third-party websites including news sites, review platforms, government sites, and informational content not directly selling insurance",
+      "is_brand_type": false,
+      "color": "emerald",
+      "icon": "Newspaper",
+      "examples": [
+        "ynet.co.il",
+        "calcalist.co.il",
+        "gov.il"
+      ]
+    }
+  ]
+}

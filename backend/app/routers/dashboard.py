@@ -109,6 +109,7 @@ async def get_brand_protection_losses(
     brand: str = Query(..., description="Brand name to analyze"),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> List[BrandProtectionLoss]:
     """
@@ -118,12 +119,14 @@ async def get_brand_protection_losses(
         brand: Brand name to analyze
         limit: Maximum results to return
         offset: Results offset for pagination
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         List of keywords where brand loses
     """
-    service = AnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = AnalyticsService(db, market_id=effective_market_id)
     losses, _ = await service.get_brand_losses(brand, limit=limit, offset=offset)
     return losses
 
@@ -132,6 +135,7 @@ async def get_brand_protection_losses(
 async def get_top_competitors(
     brand: str = Query(..., description="Brand name to analyze"),
     limit: int = Query(10, ge=1, le=50),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> List[CompetitorStats]:
     """
@@ -140,12 +144,14 @@ async def get_top_competitors(
     Args:
         brand: Brand name to analyze
         limit: Maximum competitors to return
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         List of competitor statistics
     """
-    service = AnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = AnalyticsService(db, market_id=effective_market_id)
     return await service.get_top_competitors(brand, limit=limit)
 
 
@@ -153,6 +159,7 @@ async def get_top_competitors(
 async def get_loss_categories(
     brand: str = Query(..., description="Brand name to analyze"),
     limit: int = Query(20, ge=1, le=100),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> List[CategoryLossStats]:
     """
@@ -161,12 +168,14 @@ async def get_loss_categories(
     Args:
         brand: Brand name to analyze
         limit: Maximum categories to return
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         List of category loss statistics
     """
-    service = AnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = AnalyticsService(db, market_id=effective_market_id)
     return await service.get_losses_by_category(brand, limit=limit)
 
 
@@ -178,6 +187,7 @@ async def get_category_value_losses(
     category: str,
     brand: str = Query(..., description="Brand name to analyze"),
     limit: int = Query(20, ge=1, le=100),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> List[CategoryValueLossStats]:
     """
@@ -188,12 +198,14 @@ async def get_category_value_losses(
         category: Category name (internal name, not display_name)
         brand: Brand name to analyze
         limit: Maximum values to return
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         List of category value loss statistics
     """
-    service = AnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = AnalyticsService(db, market_id=effective_market_id)
     return await service.get_category_value_losses(brand, category, limit=limit)
 
 
@@ -203,6 +215,7 @@ async def get_category_value_losses(
 )
 async def get_modifier_group_stats(
     brand: str = Query(..., description="Brand name to analyze"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> List[ModifierGroupStats]:
     """
@@ -211,12 +224,14 @@ async def get_modifier_group_stats(
 
     Args:
         brand: Brand name to analyze
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         List of modifier group statistics
     """
-    service = AnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = AnalyticsService(db, market_id=effective_market_id)
     return await service.get_modifier_group_stats(brand)
 
 
@@ -228,6 +243,7 @@ async def get_category_protection_breakdown(
     category: str,
     brand: str = Query(..., description="Brand name to analyze"),
     value_limit: int = Query(10, ge=1, le=50, description="Max values to return"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> CategoryProtectionBreakdown:
     """
@@ -239,12 +255,14 @@ async def get_category_protection_breakdown(
         category: Category name (internal name)
         brand: Brand name to analyze
         value_limit: Maximum values to return
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         Complete category protection breakdown
     """
-    service = AnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = AnalyticsService(db, market_id=effective_market_id)
     return await service.get_category_protection_breakdown(brand, category, value_limit)
 
 
@@ -256,6 +274,7 @@ async def get_modifier_group_protection_breakdown(
     modifier_group: str,
     brand: str = Query(..., description="Brand name to analyze"),
     limit: int = Query(10, ge=1, le=50, description="Max tags to return"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> ModifierGroupProtectionBreakdown:
     """
@@ -267,12 +286,14 @@ async def get_modifier_group_protection_breakdown(
         modifier_group: Modifier group name
         brand: Brand name to analyze
         limit: Maximum tags to return
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         Complete modifier group protection breakdown
     """
-    service = AnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = AnalyticsService(db, market_id=effective_market_id)
     return await service.get_modifier_group_protection_breakdown(brand, modifier_group, limit)
 
 
@@ -284,6 +305,7 @@ async def get_modifier_group_protection_breakdown(
 @router.get("/category-opportunities", response_model=CategoryOpportunityDashboard)
 async def get_category_opportunities(
     brand: str = Query(..., description="Brand name to analyze"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> CategoryOpportunityDashboard:
     """
@@ -298,18 +320,21 @@ async def get_category_opportunities(
 
     Args:
         brand: Brand name to analyze
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         Complete category opportunities dashboard with KPIs and modifier groups
     """
-    service = AnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = AnalyticsService(db, market_id=effective_market_id)
     return await service.get_category_opportunities(brand)
 
 
 @router.get("/competitor-branded-opportunities", response_model=CompetitorBrandedDashboard)
 async def get_competitor_branded_opportunities(
     brand: str = Query(..., description="Brand name to analyze"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> CompetitorBrandedDashboard:
     """
@@ -324,12 +349,14 @@ async def get_competitor_branded_opportunities(
 
     Args:
         brand: Brand name to analyze
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         Competitor branded opportunities dashboard with KPIs and modifier groups
     """
-    service = AnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = AnalyticsService(db, market_id=effective_market_id)
     return await service.get_competitor_branded_opportunities(brand)
 
 
@@ -345,6 +372,7 @@ async def get_modifier_group_opportunity_breakdown(
         description="Type of keywords: 'nonbranded' or 'competitor_branded'",
         regex="^(nonbranded|competitor_branded)$",
     ),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> ModifierGroupOpportunityBreakdown:
     """
@@ -359,12 +387,14 @@ async def get_modifier_group_opportunity_breakdown(
         brand: Brand name to analyze
         modifier_group: The modifier group to break down
         keyword_type: Type of keywords ('nonbranded' or 'competitor_branded')
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         Complete modifier group opportunity breakdown
     """
-    service = AnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = AnalyticsService(db, market_id=effective_market_id)
     return await service.get_modifier_group_opportunity_breakdown(
         brand, modifier_group, keyword_type
     )

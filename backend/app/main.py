@@ -13,7 +13,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from app.config import get_settings
-from app.database import close_db, init_db
+from app.supabase_db import close_supabase_db, init_supabase_db
 from app.middleware import MarketContextMiddleware
 from app.routers import brands_router, config_router, dashboard_router, keywords_router, market_overview_router, markets_router
 from app.schemas import HealthResponse
@@ -50,14 +50,14 @@ async def lifespan(app: FastAPI):
     """
     logger.info("Starting application...")
 
-    # Initialize database
-    await init_db()
-    logger.info("Database initialized")
+    # Initialize Supabase connection
+    await init_supabase_db()
+    logger.info("Supabase database initialized")
 
     yield
 
     # Cleanup
-    await close_db()
+    await close_supabase_db()
     logger.info("Application shutdown complete")
 
 

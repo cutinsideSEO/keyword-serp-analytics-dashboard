@@ -75,6 +75,7 @@ async def get_share_of_search(
 @router.get("/retailers", response_model=List[DomainVisibilityItem])
 async def get_top_retailers(
     limit: int = Query(10, ge=1, le=50, description="Maximum retailers to return"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> List[DomainVisibilityItem]:
     """
@@ -83,15 +84,17 @@ async def get_top_retailers(
 
     Args:
         limit: Maximum retailers to return
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         List of top retailers with visibility metrics
     """
-    service = MarketAnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = MarketAnalyticsService(db, market_id=effective_market_id)
 
     # Get first non-brand type (e.g., Comparison Site, Reseller)
-    non_brand_types = market_config.get_non_brand_type_names()
+    non_brand_types = await service.get_non_brand_type_names()
     retailer_type = non_brand_types[0] if non_brand_types else "Reseller"
 
     return await service.get_domain_visibility_by_type(retailer_type, limit)
@@ -100,6 +103,7 @@ async def get_top_retailers(
 @router.get("/influential-voices", response_model=List[DomainVisibilityItem])
 async def get_influential_voices(
     limit: int = Query(10, ge=1, le=50, description="Maximum domains to return"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> List[DomainVisibilityItem]:
     """
@@ -108,15 +112,17 @@ async def get_influential_voices(
 
     Args:
         limit: Maximum domains to return
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         List of influential UGC and 3rd Party domains
     """
-    service = MarketAnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = MarketAnalyticsService(db, market_id=effective_market_id)
 
     # Get remaining non-brand types (excluding first which is "retailers")
-    non_brand_types = market_config.get_non_brand_type_names()
+    non_brand_types = await service.get_non_brand_type_names()
     voice_types = non_brand_types[1:] if len(non_brand_types) > 1 else []
 
     # Fetch and combine all voice types
@@ -133,6 +139,7 @@ async def get_influential_voices(
 
 @router.get("/protection-kpis", response_model=MarketProtectionKPIs)
 async def get_market_protection_kpis(
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> MarketProtectionKPIs:
     """
@@ -140,35 +147,41 @@ async def get_market_protection_kpis(
     Includes both totals and averages across all brands.
 
     Args:
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         Market-wide protection KPIs
     """
-    service = MarketAnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = MarketAnalyticsService(db, market_id=effective_market_id)
     return await service.get_market_protection_kpis()
 
 
 @router.get("/loss-distribution", response_model=List[MarketLossDistribution])
 async def get_loss_distribution(
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> List[MarketLossDistribution]:
     """
     Get loss distribution by domain type across all brands.
 
     Args:
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         Loss distribution by domain type
     """
-    service = MarketAnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = MarketAnalyticsService(db, market_id=effective_market_id)
     return await service.get_market_loss_distribution()
 
 
 @router.get("/biggest-losers", response_model=List[BrandLossItem])
 async def get_biggest_losers(
     limit: int = Query(20, ge=1, le=100, description="Maximum brands to return"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> List[BrandLossItem]:
     """
@@ -177,29 +190,34 @@ async def get_biggest_losers(
 
     Args:
         limit: Maximum brands to return
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         List of brands with worst protection metrics
     """
-    service = MarketAnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = MarketAnalyticsService(db, market_id=effective_market_id)
     return await service.get_biggest_losers(limit)
 
 
 @router.get("/categories", response_model=List[CategoryMarketStats])
 async def get_category_stats(
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> List[CategoryMarketStats]:
     """
     Get market statistics for all categories.
 
     Args:
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         List of categories with market statistics
     """
-    service = MarketAnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = MarketAnalyticsService(db, market_id=effective_market_id)
     return await service.get_category_market_stats()
 
 
@@ -209,6 +227,7 @@ async def get_category_breakdown(
     value_limit: int = Query(
         10, ge=1, le=50, description="Maximum values to return per category"
     ),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> CategoryBreakdown:
     """
@@ -218,29 +237,34 @@ async def get_category_breakdown(
     Args:
         category_name: Category name (internal name)
         value_limit: Maximum values to return
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         Detailed category breakdown
     """
-    service = MarketAnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = MarketAnalyticsService(db, market_id=effective_market_id)
     return await service.get_category_breakdown(category_name, value_limit)
 
 
 @router.get("/modifier-groups", response_model=List[ModifierGroupMarketStats])
 async def get_modifier_group_stats(
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> List[ModifierGroupMarketStats]:
     """
     Get market statistics for all modifier groups.
 
     Args:
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         List of modifier groups with market statistics
     """
-    service = MarketAnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = MarketAnalyticsService(db, market_id=effective_market_id)
     return await service.get_modifier_group_market_stats()
 
 
@@ -248,6 +272,7 @@ async def get_modifier_group_stats(
 async def get_modifier_group_breakdown(
     modifier_group: str,
     limit: int = Query(10, ge=1, le=50, description="Maximum items to return in lists"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> ModifierGroupBreakdown:
     """
@@ -256,10 +281,12 @@ async def get_modifier_group_breakdown(
     Args:
         modifier_group: Modifier group value
         limit: Maximum items to return in lists
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         Detailed modifier group breakdown
     """
-    service = MarketAnalyticsService(db)
+    effective_market_id = market_id or get_current_market_id()
+    service = MarketAnalyticsService(db, market_id=effective_market_id)
     return await service.get_modifier_group_breakdown(modifier_group, limit)

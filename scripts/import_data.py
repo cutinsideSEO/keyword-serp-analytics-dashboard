@@ -6,12 +6,11 @@ Imports keyword data from CSV and SERP data from JSON into Supabase.
 Folder Structure:
     source_data/
     ├── insurance_il/
+    │   ├── config.json       <- REQUIRED: Market + domain type definitions
     │   ├── keywords.csv
     │   └── serp.json
-    ├── bicycle/
-    │   ├── keywords.csv
-    │   └── serp.json
-    └── electronics_us/
+    └── new_market/
+        ├── config.json       <- Must create before first import
         ├── keywords.csv
         └── serp.json
 
@@ -20,6 +19,7 @@ Usage:
     python scripts/import_data.py --all                   # Import ALL markets
     python scripts/import_data.py --market insurance_il --no-fresh  # Add to existing
     python scripts/import_data.py --list                  # List available markets
+    python scripts/import_data.py --create-config --market new_market  # Create template config
 
 Note: This script connects directly to Supabase. Configure DATABASE_URL in backend/.env
 """
@@ -31,12 +31,22 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+# Fix Windows asyncio issue with psycopg
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
 
 from app.config import get_settings
 from app.database import init_db, get_db_context
 from app.services.data_import import run_full_import, DataImportService
+from app.services.market_setup import (
+    load_config_file,
+    find_config_file,
+    create_template_config_file,
+    setup_market_from_config,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -52,12 +62,12 @@ def get_source_data_dir() -> Path:
     return settings.project_root / "source_data"
 
 
-def list_available_markets() -> list[str]:
+def list_available_markets() -> list[dict]:
     """
     List all markets that have data folders in source_data/.
 
     Returns:
-        List of market IDs (folder names)
+        List of market info dicts with id, has_config, has_csv, has_json
     """
     source_dir = get_source_data_dir()
     if not source_dir.exists():
@@ -66,17 +76,19 @@ def list_available_markets() -> list[str]:
     markets = []
     for folder in source_dir.iterdir():
         if folder.is_dir():
-            # Check if folder has required files
+            has_config = (folder / "config.json").exists()
             csv_files = list(folder.glob("*.csv"))
-            json_files = [f for f in folder.glob("*.json") if not f.name.startswith("package")]
-            if csv_files and json_files:
-                markets.append(folder.name)
-            elif csv_files:
-                markets.append(f"{folder.name} (CSV only)")
-            elif json_files:
-                markets.append(f"{folder.name} (JSON only, needs CSV)")
+            json_files = [f for f in folder.glob("*.json") if f.name != "config.json" and not f.name.startswith("package")]
 
-    return sorted(markets)
+            markets.append({
+                "id": folder.name,
+                "has_config": has_config,
+                "has_csv": len(csv_files) > 0,
+                "has_json": len(json_files) > 0,
+                "ready": has_config and len(csv_files) > 0 and len(json_files) > 0,
+            })
+
+    return sorted(markets, key=lambda m: m["id"])
 
 
 def find_market_files(market_id: str) -> tuple[Path, Path]:
@@ -96,17 +108,9 @@ def find_market_files(market_id: str) -> tuple[Path, Path]:
     market_dir = source_dir / market_id
 
     if not market_dir.exists():
-        # Fallback: check for files in root source_data (legacy support)
-        csv_files = list(source_dir.glob("*.csv"))
-        json_files = [f for f in source_dir.glob("*.json") if not f.name.startswith("package")]
-
-        if csv_files and json_files:
-            logger.warning(f"Market folder '{market_id}' not found. Using files from source_data/ root.")
-            return csv_files[0], json_files[0]
-
         raise FileNotFoundError(
             f"Market folder not found: {market_dir}\n"
-            f"Create folder: source_data/{market_id}/ with keywords.csv and serp.json"
+            f"Create folder: source_data/{market_id}/ with config.json, keywords.csv, and serp.json"
         )
 
     # Find CSV file in market folder
@@ -117,10 +121,13 @@ def find_market_files(market_id: str) -> tuple[Path, Path]:
     csv_path = csv_files[0]
     logger.info(f"Found CSV: {csv_path}")
 
-    # Find JSON file in market folder
-    json_files = [f for f in market_dir.glob("*.json") if not f.name.startswith("package")]
+    # Find JSON file in market folder (exclude config.json)
+    json_files = [
+        f for f in market_dir.glob("*.json")
+        if f.name != "config.json" and not f.name.startswith("package")
+    ]
     if not json_files:
-        raise FileNotFoundError(f"No JSON file found in {market_dir}")
+        raise FileNotFoundError(f"No SERP JSON file found in {market_dir}")
 
     json_path = json_files[0]
     logger.info(f"Found JSON: {json_path}")
@@ -150,10 +157,35 @@ async def import_market(
     logger.info(f"Importing market: {market_id}")
     logger.info(f"{'='*60}")
 
+    source_dir = get_source_data_dir()
+    market_dir = source_dir / market_id
+
+    # STEP 1: Require config.json
+    try:
+        config_path = find_config_file(market_dir)
+        config = load_config_file(config_path)
+        logger.info(f"Loaded config: {config_path}")
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        logger.error("")
+        logger.error("config.json is REQUIRED before importing data.")
+        logger.error(f"Create one with: python import_data.py --create-config --market {market_id}")
+        raise
+
+    # STEP 2: Find data files
     csv_path, json_path = find_market_files(market_id)
 
+    # STEP 3: Initialize database
     await init_db()
 
+    # STEP 4: Setup market from config BEFORE importing data
+    async with get_db_context() as session:
+        market, domain_types = await setup_market_from_config(session, market_id, config)
+        logger.info(f"Market configured: {market.name}")
+        for dt in domain_types:
+            logger.info(f"  - {dt.display_name} ({dt.type_id})")
+
+    # STEP 5: Import data
     if csv_only:
         logger.info(f"Importing CSV only (fresh={fresh})...")
         async with get_db_context() as session:
@@ -176,7 +208,7 @@ async def import_market(
 
 async def import_all_markets(fresh: bool = True) -> dict:
     """
-    Import all markets that have data folders.
+    Import all markets that have complete data folders (config + csv + json).
 
     Args:
         fresh: Clear existing data before import
@@ -185,20 +217,21 @@ async def import_all_markets(fresh: bool = True) -> dict:
         Dictionary of market_id -> stats
     """
     markets = list_available_markets()
-    # Filter out incomplete markets
-    complete_markets = [m for m in markets if "(" not in m]
+    ready_markets = [m for m in markets if m["ready"]]
 
-    if not complete_markets:
+    if not ready_markets:
         logger.error("No complete market data found in source_data/")
-        logger.info("Expected structure:")
-        logger.info("  source_data/{market_id}/keywords.csv")
-        logger.info("  source_data/{market_id}/serp.json")
+        logger.info("Each market needs: config.json, keywords.csv, serp.json")
+        logger.info("")
+        logger.info("To create a new market:")
+        logger.info("  python import_data.py --create-config --market my_market")
         return {}
 
-    logger.info(f"Found {len(complete_markets)} markets to import: {complete_markets}")
+    logger.info(f"Found {len(ready_markets)} markets to import: {[m['id'] for m in ready_markets]}")
 
     results = {}
-    for market_id in complete_markets:
+    for market_info in ready_markets:
+        market_id = market_info["id"]
         try:
             stats = await import_market(market_id, fresh=fresh)
             results[market_id] = {"status": "success", "stats": stats}
@@ -210,29 +243,75 @@ async def import_all_markets(fresh: bool = True) -> dict:
 
 
 def print_market_list():
-    """Print available markets."""
+    """Print available markets with their status."""
     markets = list_available_markets()
     source_dir = get_source_data_dir()
 
     print(f"\nSource data directory: {source_dir}")
-    print("-" * 50)
+    print("-" * 60)
 
     if not markets:
-        print("No market data found!")
+        print("No market folders found!")
+        print("\nTo create a new market:")
+        print("  python import_data.py --create-config --market my_market")
         print("\nExpected structure:")
         print("  source_data/")
-        print("  ├── insurance_il/")
-        print("  │   ├── keywords.csv")
-        print("  │   └── serp.json")
-        print("  └── bicycle/")
-        print("      ├── keywords.csv")
-        print("      └── serp.json")
+        print("  └── my_market/")
+        print("      ├── config.json    <- Market configuration (required)")
+        print("      ├── keywords.csv   <- Keyword data")
+        print("      └── serp.json      <- SERP rankings")
     else:
-        print(f"Found {len(markets)} market(s):\n")
+        print(f"Found {len(markets)} market folder(s):\n")
+
         for market in markets:
-            print(f"  • {market}")
+            status_parts = []
+            if market["has_config"]:
+                status_parts.append("config")
+            if market["has_csv"]:
+                status_parts.append("csv")
+            if market["has_json"]:
+                status_parts.append("json")
+
+            status = ", ".join(status_parts) if status_parts else "empty"
+            ready_icon = "[OK]" if market["ready"] else "[--]"
+
+            print(f"  {ready_icon} {market['id']}: [{status}]")
+
+            if not market["has_config"]:
+                print(f"      > Missing config.json. Run: --create-config --market {market['id']}")
 
     print()
+
+
+def create_config_for_market(market_id: str):
+    """Create a template config.json for a market."""
+    source_dir = get_source_data_dir()
+    market_dir = source_dir / market_id
+
+    # Check if config already exists
+    config_path = market_dir / "config.json"
+    if config_path.exists():
+        print(f"\nconfig.json already exists: {config_path}")
+        print("Edit it manually or delete it to regenerate.")
+        return
+
+    # Create template
+    created_path = create_template_config_file(market_dir, market_id)
+
+    print(f"\nCreated template config: {created_path}")
+    print("\nNext steps:")
+    print(f"  1. Edit {created_path} to customize:")
+    print("     - market.name: Human-readable market name")
+    print("     - market.industry_context: Description for AI classification")
+    print("     - market.language: 'en', 'he', etc.")
+    print("     - market.text_direction: 'ltr' or 'rtl'")
+    print("     - domain_types: Configure your domain categories")
+    print("")
+    print(f"  2. Add data files to source_data/{market_id}/:")
+    print("     - keywords.csv")
+    print("     - serp.json")
+    print("")
+    print(f"  3. Import: python import_data.py --market {market_id}")
 
 
 async def main(
@@ -241,12 +320,20 @@ async def main(
     csv_only: bool = False,
     json_only: bool = False,
     fresh: bool = True,
-    list_markets: bool = False
+    list_markets: bool = False,
+    create_config: bool = False
 ):
     """Main entry point."""
 
     if list_markets:
         print_market_list()
+        return
+
+    if create_config:
+        if not market_id:
+            print("Error: --market is required with --create-config")
+            sys.exit(1)
+        create_config_for_market(market_id)
         return
 
     if import_all:
@@ -255,15 +342,15 @@ async def main(
         print("IMPORT SUMMARY")
         print("=" * 60)
         for market, result in results.items():
-            status = "✓" if result["status"] == "success" else "✗"
+            status = "[OK]" if result["status"] == "success" else "[FAIL]"
             print(f"{status} {market}: {result['status']}")
         return
 
     if not market_id:
-        # Try to auto-detect if only one market exists
-        markets = [m for m in list_available_markets() if "(" not in m]
+        # Try to auto-detect if only one ready market exists
+        markets = [m for m in list_available_markets() if m["ready"]]
         if len(markets) == 1:
-            market_id = markets[0]
+            market_id = markets[0]["id"]
             logger.info(f"Auto-detected market: {market_id}")
         else:
             print("Error: --market is required (or use --all to import all markets)")
@@ -293,17 +380,20 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python import_data.py --list                    # List available markets
-  python import_data.py --market insurance_il     # Import specific market
-  python import_data.py --all                     # Import all markets
-  python import_data.py --market bicycle --no-fresh  # Add to existing data
+  python import_data.py --list                          # List available markets
+  python import_data.py --create-config --market new    # Create config template
+  python import_data.py --market insurance_il           # Import specific market
+  python import_data.py --all                           # Import all markets
+  python import_data.py --market bicycle --no-fresh     # Add to existing data
 
-Folder structure:
+Folder structure (config.json is REQUIRED):
   source_data/
   ├── insurance_il/
+  │   ├── config.json    <- Market configuration
   │   ├── keywords.csv
   │   └── serp.json
   └── bicycle/
+      ├── config.json
       ├── keywords.csv
       └── serp.json
         """
@@ -324,6 +414,12 @@ Folder structure:
         action="store_true",
         dest="list_markets",
         help="List available markets in source_data/",
+    )
+    parser.add_argument(
+        "--create-config",
+        action="store_true",
+        dest="create_config",
+        help="Create template config.json in market folder",
     )
     parser.add_argument(
         "--csv-only",
@@ -349,5 +445,6 @@ Folder structure:
         csv_only=args.csv_only,
         json_only=args.json_only,
         fresh=not args.no_fresh,
-        list_markets=args.list_markets
+        list_markets=args.list_markets,
+        create_config=args.create_config
     ))

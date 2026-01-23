@@ -69,37 +69,63 @@ The application supports multiple isolated markets (e.g., insurance, bicycles). 
 
 ### Adding a New Market
 
-To add a new market, insert into two Supabase tables:
+Markets are defined via `config.json` files in each market folder. The import script automatically creates/updates the market in Supabase.
 
-**1. Add the market:**
-```sql
-INSERT INTO markets (id, name, industry_context, language, text_direction, brand_category_names, is_active)
-VALUES (
-  'electronics_us',                    -- Unique market ID
-  'US Electronics Market',             -- Display name
-  'Consumer electronics retail',       -- Industry context for AI
-  'en',                                -- Language code
-  'ltr',                               -- Text direction (ltr/rtl)
-  '["brand", "manufacturer"]',         -- JSON array of brand category names
-  true
-);
-```
-
-**2. Add domain types for the market:**
-```sql
-INSERT INTO market_domain_types (market_id, id, display_name, tremor_color, hex_color, gradient, bg_class, text_class, border_class, icon, is_brand_type, sort_order)
-VALUES
-  ('electronics_us', 'brand', 'Brand', 'blue', '#3B82F6', 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)', 'bg-blue-50', 'text-blue-700', 'border-blue-200', 'Building2', true, 1),
-  ('electronics_us', 'retailer', 'Retailer', 'purple', '#8B5CF6', 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)', 'bg-purple-50', 'text-purple-700', 'border-purple-200', 'ShoppingCart', false, 2),
-  ('electronics_us', 'review', 'Review Site', 'amber', '#F59E0B', 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)', 'bg-amber-50', 'text-amber-700', 'border-amber-200', 'Star', false, 3),
-  ('electronics_us', 'media', 'Tech Media', 'teal', '#14B8A6', 'linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)', 'bg-teal-50', 'text-teal-700', 'border-teal-200', 'Newspaper', false, 4);
-```
-
-**3. Import data for the market:**
+**1. Create config template:**
 ```bash
-python scripts/import_data.py --market electronics_us
-python scripts/map_brands.py --market electronics_us
+cd scripts
+python import_data.py --create-config --market electronics_us
 ```
+
+**2. Edit `source_data/electronics_us/config.json`:**
+```json
+{
+  "market": {
+    "name": "US Electronics Market",
+    "industry_context": "Consumer electronics retail",
+    "language": "en",
+    "text_direction": "ltr",
+    "brand_category_names": ["Brand - Canonical"]
+  },
+  "domain_types": [
+    {
+      "type_id": "brand",
+      "display_name": "Brand",
+      "ai_description": "Official brand website selling their own products",
+      "is_brand_type": true,
+      "color": "blue",
+      "icon": "Building2",
+      "examples": ["apple.com", "samsung.com"]
+    },
+    {
+      "type_id": "retailer",
+      "display_name": "Retailer",
+      "ai_description": "Multi-brand retailers",
+      "is_brand_type": false,
+      "color": "purple",
+      "icon": "ShoppingCart",
+      "examples": ["amazon.com", "bestbuy.com"]
+    }
+  ]
+}
+```
+
+**3. Add data files and import:**
+```bash
+# Add keywords.csv and serp.json to source_data/electronics_us/
+python import_data.py --market electronics_us
+python map_brands.py --market electronics_us
+```
+
+**Color Presets** (just specify `"color": "blue"` - styling is auto-generated):
+| Color | Use Case |
+|-------|----------|
+| blue | Brand (primary) |
+| purple | Comparison/Aggregator |
+| orange | Reseller |
+| amber | UGC |
+| emerald | 3rd Party |
+| teal, rose, indigo, cyan, gray | Additional options |
 
 ### Market Selection
 - Users select markets via the sidebar dropdown
@@ -130,6 +156,7 @@ NewDashboard/
 │   │   └── services/
 │   │       ├── analytics.py     # Brand protection analytics
 │   │       ├── market_analytics.py  # Market-wide analytics
+│   │       ├── market_setup.py  # Config-based market setup
 │   │       └── data_import.py   # Data import service
 │   └── .env                     # Supabase credentials
 │
@@ -257,13 +284,16 @@ cd frontend && npm run dev
 
 ### Import Data
 
-Data is organized by market in `source_data/` folders:
+Data is organized by market in `source_data/` folders. **config.json is required** for each market:
 ```
 source_data/
 ├── insurance_il/
+│   ├── config.json       <- REQUIRED: Market + domain type definitions
 │   ├── keywords.csv
-│   └── serp.json
-└── bicycle/
+│   ├── serp.json
+│   └── mappings.json     <- Optional: Manual brand-domain mappings
+└── new_market/
+    ├── config.json       <- Must create before first import
     ├── keywords.csv
     └── serp.json
 ```
@@ -271,10 +301,11 @@ source_data/
 Import commands:
 ```bash
 cd scripts
-python import_data.py --list              # List available markets
-python import_data.py --market insurance_il  # Import one market
-python import_data.py --all                  # Import all markets
-python map_brands.py --market insurance_il   # AI domain mapping
+python import_data.py --list                          # List available markets
+python import_data.py --create-config --market new    # Create config template
+python import_data.py --market insurance_il           # Import one market
+python import_data.py --all                           # Import all markets
+python map_brands.py --market insurance_il            # AI domain mapping
 ```
 
 ### Frontend: useMarketConfig() hook

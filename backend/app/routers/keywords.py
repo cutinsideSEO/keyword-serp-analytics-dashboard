@@ -11,6 +11,7 @@ from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.middleware.market_context import get_current_market_id
 from app.models import Category, Domain, Keyword, KeywordTag, SerpResult
 from app.schemas import (
     CategoryResponse,
@@ -35,6 +36,7 @@ async def list_keywords(
     min_volume: Optional[int] = None,
     max_volume: Optional[int] = None,
     modifier_group: Optional[str] = None,
+    market_id: Optional[str] = Query(None, description="Market ID"),
 ) -> KeywordListResponse:
     """
     List keywords with filtering and pagination.
@@ -49,13 +51,16 @@ async def list_keywords(
         min_volume: Minimum volume filter
         max_volume: Maximum volume filter
         modifier_group: Filter by modifier group
+        market_id: Market ID (optional)
 
     Returns:
         Paginated list of keywords
     """
-    # Base query
-    query = select(Keyword)
-    count_query = select(func.count(Keyword.id))
+    effective_market_id = market_id or get_current_market_id()
+
+    # Base query with market filter
+    query = select(Keyword).where(Keyword.market_id == effective_market_id)
+    count_query = select(func.count(Keyword.id)).where(Keyword.market_id == effective_market_id)
 
     # Apply filters
     if search:
@@ -75,9 +80,12 @@ async def list_keywords(
         count_query = count_query.where(Keyword.modifier_group == modifier_group)
 
     if category:
-        # Get category ID
+        # Get category ID (filtered by market)
         cat_result = await db.execute(
-            select(Category).where(Category.name == category)
+            select(Category).where(
+                Category.name == category,
+                Category.market_id == effective_market_id
+            )
         )
         cat = cat_result.scalar_one_or_none()
 
@@ -139,19 +147,27 @@ async def list_keywords(
 
 @router.get("/categories", response_model=List[CategoryWithValues])
 async def list_categories(
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> List[CategoryWithValues]:
     """
     List all categories with their unique values.
 
     Args:
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         List of categories with values
     """
-    # Get all categories
-    result = await db.execute(select(Category).order_by(Category.display_name))
+    effective_market_id = market_id or get_current_market_id()
+
+    # Get all categories for this market
+    result = await db.execute(
+        select(Category)
+        .where(Category.market_id == effective_market_id)
+        .order_by(Category.display_name)
+    )
     categories = result.scalars().all()
 
     items = []
@@ -195,6 +211,7 @@ async def list_categories(
 @router.get("/{keyword_id}", response_model=KeywordWithSerp)
 async def get_keyword(
     keyword_id: int,
+    market_id: Optional[str] = Query(None, description="Market ID"),
     db: AsyncSession = Depends(get_db),
 ) -> KeywordWithSerp:
     """
@@ -202,13 +219,21 @@ async def get_keyword(
 
     Args:
         keyword_id: Keyword ID
+        market_id: Market ID (optional)
         db: Database session
 
     Returns:
         Keyword with tags and SERP results
     """
-    # Get keyword
-    result = await db.execute(select(Keyword).where(Keyword.id == keyword_id))
+    effective_market_id = market_id or get_current_market_id()
+
+    # Get keyword (filtered by market to ensure data isolation)
+    result = await db.execute(
+        select(Keyword).where(
+            Keyword.id == keyword_id,
+            Keyword.market_id == effective_market_id
+        )
+    )
     keyword = result.scalar_one_or_none()
 
     if not keyword:

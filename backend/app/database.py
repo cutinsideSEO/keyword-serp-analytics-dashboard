@@ -24,12 +24,17 @@ engine_kwargs = {
 
 # PostgreSQL/Supabase specific settings
 if settings.is_supabase:
+    # Determine driver from URL
+    is_psycopg = "psycopg" in settings.database_url and "asyncpg" not in settings.database_url
+
     engine_kwargs.update({
         # Use NullPool for serverless environments (Supabase)
         "poolclass": NullPool,
-        # SSL settings for Supabase
+        # SSL settings differ between drivers
         "connect_args": {
-            "ssl": "require",
+            "sslmode": "require",  # psycopg3 uses sslmode
+        } if is_psycopg else {
+            "ssl": "require",  # asyncpg uses ssl
         },
     })
 
