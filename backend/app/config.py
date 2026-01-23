@@ -11,11 +11,17 @@ from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _get_env_file() -> str | None:
+    """Get .env file path if it exists (for local development)."""
+    env_path = Path(__file__).parent.parent / ".env"
+    return str(env_path) if env_path.exists() else None
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     model_config = SettingsConfigDict(
-        env_file=str(Path(__file__).parent.parent / ".env"),
+        env_file=_get_env_file(),
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
