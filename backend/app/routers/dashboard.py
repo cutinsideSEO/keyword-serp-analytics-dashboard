@@ -16,7 +16,10 @@ from app.schemas import (
     BrandProtectionLoss,
     BrandProtectionWin,
     CategoryLossStats,
+    CategoryOpportunityDashboard,
+    CompetitorBrandedDashboard,
     CompetitorStats,
+    ModifierGroupOpportunityBreakdown,
     ModifierGroupStats,
 )
 from app.services.supabase_analytics import SupabaseAnalyticsService
@@ -180,3 +183,72 @@ async def get_modifier_group_stats(
     effective_market_id = market_id or get_current_market_id()
     service = SupabaseAnalyticsService(market_id=effective_market_id)
     return await service.get_modifier_group_stats(brand)
+
+
+@router.get("/category-opportunities", response_model=CategoryOpportunityDashboard)
+async def get_category_opportunities(
+    brand: str = Query(..., description="Brand name to analyze"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
+) -> CategoryOpportunityDashboard:
+    """
+    Get category opportunities for non-branded keywords.
+
+    Shows where the brand can capture more non-branded search volume
+    by modifier group.
+
+    Args:
+        brand: Brand name to analyze
+        market_id: Market ID (optional)
+
+    Returns:
+        Category opportunity dashboard with KPIs and modifier groups
+    """
+    effective_market_id = market_id or get_current_market_id()
+    service = SupabaseAnalyticsService(market_id=effective_market_id)
+    return await service.get_category_opportunities(brand)
+
+
+@router.get("/competitor-branded-opportunities", response_model=CompetitorBrandedDashboard)
+async def get_competitor_branded_opportunities(
+    brand: str = Query(..., description="Brand name to analyze"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
+) -> CompetitorBrandedDashboard:
+    """
+    Get opportunities on competitor-branded keywords.
+
+    Shows where the brand can capture volume on competitor brand searches.
+
+    Args:
+        brand: Brand name to analyze
+        market_id: Market ID (optional)
+
+    Returns:
+        Competitor branded opportunity dashboard
+    """
+    effective_market_id = market_id or get_current_market_id()
+    service = SupabaseAnalyticsService(market_id=effective_market_id)
+    return await service.get_competitor_branded_opportunities(brand)
+
+
+@router.get("/modifier-group-opportunity-breakdown", response_model=ModifierGroupOpportunityBreakdown)
+async def get_modifier_group_opportunity_breakdown(
+    brand: str = Query(..., description="Brand name to analyze"),
+    modifier_group: str = Query(..., description="Modifier group to analyze"),
+    keyword_type: str = Query("nonbranded", description="Keyword type: nonbranded or competitor_branded"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
+) -> ModifierGroupOpportunityBreakdown:
+    """
+    Get detailed breakdown for a modifier group opportunity.
+
+    Args:
+        brand: Brand name to analyze
+        modifier_group: Modifier group value
+        keyword_type: Type of keywords (nonbranded or competitor_branded)
+        market_id: Market ID (optional)
+
+    Returns:
+        Detailed modifier group opportunity breakdown
+    """
+    effective_market_id = market_id or get_current_market_id()
+    service = SupabaseAnalyticsService(market_id=effective_market_id)
+    return await service.get_modifier_group_opportunity_breakdown(brand, modifier_group, keyword_type)

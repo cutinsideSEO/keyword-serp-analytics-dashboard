@@ -15,8 +15,16 @@ from app.schemas import (
     BrandProtectionLoss,
     BrandProtectionWin,
     CategoryLossStats,
+    CategoryOpportunityDashboard,
+    CategoryOpportunityKPIs,
+    CompetitorBrandedDashboard,
     CompetitorStats,
+    ModifierGroupOpportunity,
+    ModifierGroupOpportunityBreakdown,
     ModifierGroupStats,
+    OpportunityCompetitor,
+    OpportunityCategoryValue,
+    OpportunityKeywordDetail,
 )
 
 logger = logging.getLogger(__name__)
@@ -308,3 +316,273 @@ class SupabaseAnalyticsService:
             losses=losses,
             top_competitors=competitors,
         )
+
+    async def get_category_opportunities(
+        self, brand_name: str
+    ) -> CategoryOpportunityDashboard:
+        """
+        Get category opportunities for non-branded keywords.
+
+        Args:
+            brand_name: Brand to analyze
+
+        Returns:
+            CategoryOpportunityDashboard with KPIs and modifier groups
+        """
+        try:
+            result = self.client.rpc(
+                "get_category_opportunities",
+                {"p_market_id": self.market_id, "p_brand_name": brand_name}
+            ).execute()
+
+            if result.data:
+                data = result.data
+                kpis = CategoryOpportunityKPIs(
+                    total_nonbranded_keywords=data.get("total_nonbranded_keywords", 0),
+                    total_nonbranded_volume=data.get("total_nonbranded_volume", 0),
+                    keywords_captured=data.get("keywords_captured", 0),
+                    volume_captured=data.get("volume_captured", 0),
+                    keywords_uncaptured=data.get("keywords_uncaptured", 0),
+                    volume_uncaptured=data.get("volume_uncaptured", 0),
+                    overall_capture_rate=data.get("overall_capture_rate", 0),
+                    volume_capture_rate=data.get("volume_capture_rate", 0),
+                    biggest_opportunity_group=data.get("biggest_opportunity_group"),
+                    biggest_opportunity_volume=data.get("biggest_opportunity_volume", 0),
+                )
+                modifier_groups = [
+                    ModifierGroupOpportunity(
+                        modifier_group=mg.get("modifier_group", ""),
+                        total_keywords=mg.get("total_keywords", 0),
+                        total_volume=mg.get("total_volume", 0),
+                        keywords_captured=mg.get("keywords_captured", 0),
+                        volume_captured=mg.get("volume_captured", 0),
+                        keywords_uncaptured=mg.get("keywords_uncaptured", 0),
+                        volume_uncaptured=mg.get("volume_uncaptured", 0),
+                        capture_rate=mg.get("capture_rate", 0),
+                        avg_brand_position=mg.get("avg_brand_position"),
+                        top_competitors=[
+                            OpportunityCompetitor(
+                                domain=c.get("domain", ""),
+                                domain_type=c.get("domain_type"),
+                                wins_count=c.get("wins_count", 0),
+                                volume_captured=c.get("volume_captured", 0),
+                            )
+                            for c in mg.get("top_competitors", []) or []
+                        ],
+                        top_tags=mg.get("top_tags") or {},
+                        example_keywords=mg.get("example_keywords") or [],
+                    )
+                    for mg in data.get("modifier_groups", []) or []
+                ]
+                return CategoryOpportunityDashboard(
+                    brand_name=brand_name,
+                    brand_domains=data.get("brand_domains") or [],
+                    kpis=kpis,
+                    modifier_groups=modifier_groups,
+                )
+            return CategoryOpportunityDashboard(
+                brand_name=brand_name,
+                brand_domains=[],
+                kpis=CategoryOpportunityKPIs(),
+                modifier_groups=[],
+            )
+        except Exception as e:
+            logger.exception(f"Error getting category opportunities: {e}")
+            return CategoryOpportunityDashboard(
+                brand_name=brand_name,
+                brand_domains=[],
+                kpis=CategoryOpportunityKPIs(),
+                modifier_groups=[],
+            )
+
+    async def get_competitor_branded_opportunities(
+        self, brand_name: str
+    ) -> CompetitorBrandedDashboard:
+        """
+        Get opportunities on competitor-branded keywords.
+
+        Args:
+            brand_name: Brand to analyze
+
+        Returns:
+            CompetitorBrandedDashboard
+        """
+        try:
+            result = self.client.rpc(
+                "get_competitor_branded_opportunities",
+                {"p_market_id": self.market_id, "p_brand_name": brand_name}
+            ).execute()
+
+            if result.data:
+                data = result.data
+                kpis = CategoryOpportunityKPIs(
+                    total_nonbranded_keywords=data.get("total_competitor_keywords", 0),
+                    total_nonbranded_volume=data.get("total_competitor_volume", 0),
+                    keywords_captured=data.get("keywords_captured", 0),
+                    volume_captured=data.get("volume_captured", 0),
+                    keywords_uncaptured=data.get("keywords_uncaptured", 0),
+                    volume_uncaptured=data.get("volume_uncaptured", 0),
+                    overall_capture_rate=data.get("overall_capture_rate", 0),
+                    volume_capture_rate=data.get("volume_capture_rate", 0),
+                    biggest_opportunity_group=data.get("biggest_opportunity_group"),
+                    biggest_opportunity_volume=data.get("biggest_opportunity_volume", 0),
+                )
+                modifier_groups = [
+                    ModifierGroupOpportunity(
+                        modifier_group=mg.get("modifier_group", ""),
+                        total_keywords=mg.get("total_keywords", 0),
+                        total_volume=mg.get("total_volume", 0),
+                        keywords_captured=mg.get("keywords_captured", 0),
+                        volume_captured=mg.get("volume_captured", 0),
+                        keywords_uncaptured=mg.get("keywords_uncaptured", 0),
+                        volume_uncaptured=mg.get("volume_uncaptured", 0),
+                        capture_rate=mg.get("capture_rate", 0),
+                        avg_brand_position=mg.get("avg_brand_position"),
+                        top_competitors=[
+                            OpportunityCompetitor(
+                                domain=c.get("domain", ""),
+                                domain_type=c.get("domain_type"),
+                                wins_count=c.get("wins_count", 0),
+                                volume_captured=c.get("volume_captured", 0),
+                            )
+                            for c in mg.get("top_competitors", []) or []
+                        ],
+                        top_tags=mg.get("top_tags") or {},
+                        example_keywords=mg.get("example_keywords") or [],
+                    )
+                    for mg in data.get("modifier_groups", []) or []
+                ]
+                return CompetitorBrandedDashboard(
+                    brand_name=brand_name,
+                    brand_domains=data.get("brand_domains") or [],
+                    competitor_brands=data.get("competitor_brands") or [],
+                    kpis=kpis,
+                    modifier_groups=modifier_groups,
+                )
+            return CompetitorBrandedDashboard(
+                brand_name=brand_name,
+                brand_domains=[],
+                competitor_brands=[],
+                kpis=CategoryOpportunityKPIs(),
+                modifier_groups=[],
+            )
+        except Exception as e:
+            logger.exception(f"Error getting competitor branded opportunities: {e}")
+            return CompetitorBrandedDashboard(
+                brand_name=brand_name,
+                brand_domains=[],
+                competitor_brands=[],
+                kpis=CategoryOpportunityKPIs(),
+                modifier_groups=[],
+            )
+
+    async def get_modifier_group_opportunity_breakdown(
+        self, brand_name: str, modifier_group: str, keyword_type: str
+    ) -> ModifierGroupOpportunityBreakdown:
+        """
+        Get detailed breakdown for a modifier group opportunity.
+
+        Args:
+            brand_name: Brand to analyze
+            modifier_group: Modifier group value
+            keyword_type: nonbranded or competitor_branded
+
+        Returns:
+            ModifierGroupOpportunityBreakdown
+        """
+        try:
+            result = self.client.rpc(
+                "get_modifier_group_opportunity_breakdown",
+                {
+                    "p_market_id": self.market_id,
+                    "p_brand_name": brand_name,
+                    "p_modifier_group": modifier_group,
+                    "p_keyword_type": keyword_type,
+                }
+            ).execute()
+
+            if result.data:
+                data = result.data
+                top_values = [
+                    OpportunityCategoryValue(
+                        category_name=v.get("category_name", ""),
+                        value=v.get("value", ""),
+                        total_keywords=v.get("total_keywords", 0),
+                        total_volume=v.get("total_volume", 0),
+                        keywords_captured=v.get("keywords_captured", 0),
+                        volume_captured=v.get("volume_captured", 0),
+                        capture_rate=v.get("capture_rate", 0),
+                        top_keywords=[
+                            OpportunityKeywordDetail(
+                                keyword=kw.get("keyword", ""),
+                                volume=kw.get("volume", 0),
+                                winner_domain=kw.get("winner_domain"),
+                                winner_position=kw.get("winner_position"),
+                                brand_position=kw.get("brand_position"),
+                                winner_domain_type=kw.get("winner_domain_type"),
+                            )
+                            for kw in v.get("top_keywords", []) or []
+                        ],
+                    )
+                    for v in data.get("top_values", []) or []
+                ]
+                competitors_by_type = {}
+                for dtype, comps in (data.get("competitors_by_type") or {}).items():
+                    competitors_by_type[dtype] = [
+                        OpportunityCompetitor(
+                            domain=c.get("domain", ""),
+                            domain_type=c.get("domain_type"),
+                            wins_count=c.get("wins_count", 0),
+                            volume_captured=c.get("volume_captured", 0),
+                        )
+                        for c in comps or []
+                    ]
+                example_keywords = [
+                    OpportunityKeywordDetail(
+                        keyword=kw.get("keyword", ""),
+                        volume=kw.get("volume", 0),
+                        winner_domain=kw.get("winner_domain"),
+                        winner_position=kw.get("winner_position"),
+                        brand_position=kw.get("brand_position"),
+                        winner_domain_type=kw.get("winner_domain_type"),
+                    )
+                    for kw in data.get("example_keywords", []) or []
+                ]
+                return ModifierGroupOpportunityBreakdown(
+                    modifier_group=modifier_group,
+                    total_keywords=data.get("total_keywords", 0),
+                    total_volume=data.get("total_volume", 0),
+                    keywords_captured=data.get("keywords_captured", 0),
+                    volume_captured=data.get("volume_captured", 0),
+                    capture_rate=data.get("capture_rate", 0),
+                    avg_brand_position=data.get("avg_brand_position"),
+                    top_values=top_values,
+                    competitors_by_type=competitors_by_type,
+                    example_keywords=example_keywords,
+                )
+            return ModifierGroupOpportunityBreakdown(
+                modifier_group=modifier_group,
+                total_keywords=0,
+                total_volume=0,
+                keywords_captured=0,
+                volume_captured=0,
+                capture_rate=0,
+                avg_brand_position=None,
+                top_values=[],
+                competitors_by_type={},
+                example_keywords=[],
+            )
+        except Exception as e:
+            logger.exception(f"Error getting modifier group opportunity breakdown: {e}")
+            return ModifierGroupOpportunityBreakdown(
+                modifier_group=modifier_group,
+                total_keywords=0,
+                total_volume=0,
+                keywords_captured=0,
+                volume_captured=0,
+                capture_rate=0,
+                avg_brand_position=None,
+                top_values=[],
+                competitors_by_type={},
+                example_keywords=[],
+            )
