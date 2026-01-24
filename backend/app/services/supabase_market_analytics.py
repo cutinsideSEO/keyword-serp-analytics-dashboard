@@ -293,15 +293,48 @@ class SupabaseMarketAnalyticsService:
         Returns:
             CategoryBreakdown with full details
         """
-        # For now, return empty breakdown - can be implemented if needed
-        return CategoryBreakdown(
-            category_name=category_name,
-            display_name=category_name,
-            total_keywords=0,
-            total_volume=0,
-            top_values=[],
-            top_players_by_type={},
-        )
+        try:
+            result = self.client.rpc(
+                "get_category_breakdown",
+                {
+                    "p_market_id": self.market_id,
+                    "p_category_name": category_name,
+                    "p_limit": limit,
+                }
+            ).execute()
+
+            if result.data:
+                data = result.data
+                # RPC returns JSON - handle string or direct object
+                if isinstance(data, str):
+                    import json
+                    data = json.loads(data)
+                return CategoryBreakdown(
+                    category_name=data.get("category_name", category_name),
+                    display_name=data.get("display_name", category_name),
+                    total_keywords=data.get("total_keywords", 0),
+                    total_volume=data.get("total_volume", 0),
+                    top_values=data.get("top_values") or [],
+                    top_players_by_type=data.get("top_players_by_type") or {},
+                )
+            return CategoryBreakdown(
+                category_name=category_name,
+                display_name=category_name,
+                total_keywords=0,
+                total_volume=0,
+                top_values=[],
+                top_players_by_type={},
+            )
+        except Exception as e:
+            logger.exception(f"Error getting category breakdown: {e}")
+            return CategoryBreakdown(
+                category_name=category_name,
+                display_name=category_name,
+                total_keywords=0,
+                total_volume=0,
+                top_values=[],
+                top_players_by_type={},
+            )
 
     async def get_modifier_group_market_stats(self) -> List[ModifierGroupMarketStats]:
         """
@@ -350,15 +383,48 @@ class SupabaseMarketAnalyticsService:
         Returns:
             ModifierGroupBreakdown with full details
         """
-        # For now, return empty breakdown - can be implemented if needed
-        return ModifierGroupBreakdown(
-            modifier_group=modifier_group,
-            total_keywords=0,
-            total_volume=0,
-            top_tags=[],
-            top_players_by_type={},
-            example_keywords=[],
-        )
+        try:
+            result = self.client.rpc(
+                "get_modifier_group_breakdown",
+                {
+                    "p_market_id": self.market_id,
+                    "p_modifier_group": modifier_group,
+                    "p_limit": limit,
+                }
+            ).execute()
+
+            if result.data:
+                data = result.data
+                # RPC returns JSON - handle string or direct object
+                if isinstance(data, str):
+                    import json
+                    data = json.loads(data)
+                return ModifierGroupBreakdown(
+                    modifier_group=data.get("modifier_group", modifier_group),
+                    total_keywords=data.get("total_keywords", 0),
+                    total_volume=data.get("total_volume", 0),
+                    top_tags=data.get("top_tags") or [],
+                    top_players_by_type=data.get("top_players_by_type") or {},
+                    example_keywords=data.get("example_keywords") or [],
+                )
+            return ModifierGroupBreakdown(
+                modifier_group=modifier_group,
+                total_keywords=0,
+                total_volume=0,
+                top_tags=[],
+                top_players_by_type={},
+                example_keywords=[],
+            )
+        except Exception as e:
+            logger.exception(f"Error getting modifier group breakdown: {e}")
+            return ModifierGroupBreakdown(
+                modifier_group=modifier_group,
+                total_keywords=0,
+                total_volume=0,
+                top_tags=[],
+                top_players_by_type={},
+                example_keywords=[],
+            )
 
     async def get_full_dashboard(self) -> MarketOverviewDashboard:
         """
