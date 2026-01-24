@@ -102,9 +102,9 @@ class SupabaseAnalyticsService:
                     BrandProtectionWin(
                         keyword=item.get("keyword", ""),
                         volume=item.get("volume", 0),
-                        rank_absolute=item.get("rank_absolute"),
-                        url=item.get("url"),
-                        tags=item.get("tags", {}),
+                        rank_absolute=item.get("rank_absolute") or 1,
+                        url=item.get("url") or "",
+                        tags=item.get("tags") or {},
                     )
                     for item in items
                 ]
@@ -149,12 +149,12 @@ class SupabaseAnalyticsService:
                         keyword=item.get("keyword", ""),
                         volume=item.get("volume", 0),
                         winner_domain=item.get("winner_domain", ""),
-                        winner_position=item.get("winner_position", 1),
-                        winner_url=item.get("winner_url"),
+                        winner_position=item.get("winner_position") or 1,
+                        winner_url=item.get("winner_url") or "",
                         brand_position=item.get("brand_position"),
                         brand_url=item.get("brand_url"),
                         modifier_group=item.get("modifier_group"),
-                        tags=item.get("tags", {}),
+                        tags=item.get("tags") or {},
                     )
                     for item in items
                 ]
@@ -192,9 +192,9 @@ class SupabaseAnalyticsService:
                     CompetitorStats(
                         domain=item.get("domain", ""),
                         domain_type=item.get("domain_type", "Unknown"),
-                        keywords_captured=item.get("keywords_captured", 0),
-                        volume_captured=item.get("volume_captured", 0),
-                        avg_position=item.get("avg_position", 1),
+                        wins_count=item.get("keywords_captured", 0),
+                        wins_volume=item.get("volume_captured", 0),
+                        avg_position=float(item.get("avg_position", 1) or 1),
                     )
                     for item in result.data
                 ]
@@ -229,11 +229,11 @@ class SupabaseAnalyticsService:
             if result.data:
                 return [
                     CategoryLossStats(
-                        category_name=item.get("category_name", ""),
+                        category=item.get("category_name", ""),
                         display_name=item.get("display_name", ""),
-                        total_keywords=item.get("total_keywords", 0),
-                        total_volume=item.get("total_volume", 0),
-                        top_values=item.get("top_values", []),
+                        loss_count=item.get("total_keywords", 0),
+                        loss_volume=item.get("total_volume", 0),
+                        example_keywords=item.get("top_values", []) or [],
                     )
                     for item in result.data
                 ]
@@ -302,6 +302,7 @@ class SupabaseAnalyticsService:
         competitors = await self.get_top_competitors(brand_name)
 
         return BrandProtectionDashboard(
+            brand_name=brand_name,
             kpis=kpis,
             wins=wins,
             losses=losses,
