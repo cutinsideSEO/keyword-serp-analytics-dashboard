@@ -51,23 +51,33 @@ class SupabaseKeywordsService:
             Paginated list of keywords
         """
         try:
-            result = self.client.rpc(
-                "get_keywords_list",
-                {
-                    "p_market_id": self.market_id,
-                    "p_page": page,
-                    "p_page_size": page_size,
-                    "p_search": search,
-                    "p_category": category,
-                    "p_category_value": category_value,
-                    "p_min_volume": min_volume,
-                    "p_max_volume": max_volume,
-                    "p_modifier_group": modifier_group,
-                }
-            ).execute()
+            # Use direct REST API query instead of RPC
+            offset = (page - 1) * page_size
+
+            # Build the base query
+            query = self.client.table("keywords").select(
+                "*", count="exact"
+            ).eq("market_id", self.market_id)
+
+            # Apply filters
+            if search:
+                query = query.ilike("keyword", f"%{search}%")
+            if min_volume is not None:
+                query = query.gte("volume", min_volume)
+            if max_volume is not None:
+                query = query.lte("volume", max_volume)
+            if modifier_group:
+                query = query.eq("modifier_group", modifier_group)
+
+            # Apply pagination and ordering
+            query = query.order("volume", desc=True).range(offset, offset + page_size - 1)
+
+            result = query.execute()
 
             if result.data:
-                data = result.data
+                total = result.count or 0
+                total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+
                 items = [
                     KeywordWithTags(
                         id=item.get("id"),
@@ -75,16 +85,16 @@ class SupabaseKeywordsService:
                         volume=item.get("volume", 0),
                         modifier_group=item.get("modifier_group"),
                         created_at=item.get("created_at"),
-                        tags=item.get("tags", {}),
+                        tags={},  # Tags require a separate join - simplified for now
                     )
-                    for item in data.get("items", [])
+                    for item in result.data
                 ]
                 return KeywordListResponse(
                     items=items,
-                    total=data.get("total", 0),
-                    page=data.get("page", page),
-                    page_size=data.get("page_size", page_size),
-                    total_pages=data.get("total_pages", 0),
+                    total=total,
+                    page=page,
+                    page_size=page_size,
+                    total_pages=total_pages,
                 )
             return KeywordListResponse(
                 items=[],
