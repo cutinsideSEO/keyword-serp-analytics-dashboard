@@ -294,6 +294,7 @@ class SupabaseMarketAnalyticsService:
             CategoryBreakdown with full details
         """
         try:
+            logger.info(f"Calling get_category_breakdown with market_id={self.market_id}, category_name={category_name}")
             result = self.client.rpc(
                 "get_category_breakdown",
                 {
@@ -302,19 +303,12 @@ class SupabaseMarketAnalyticsService:
                     "p_limit": limit,
                 }
             ).execute()
+            logger.info(f"RPC result type: {type(result.data)}, has data: {bool(result.data)}")
 
             if result.data:
                 data = result.data
-                # RPC returns JSON - handle string or direct object
-                if isinstance(data, str):
-                    import json
-                    data = json.loads(data)
-                # Handle list response (RPC may return [result] or result directly)
-                if isinstance(data, list) and len(data) > 0:
-                    data = data[0]
-                # Handle nested function name key
-                if isinstance(data, dict) and "get_category_breakdown" in data:
-                    data = data["get_category_breakdown"]
+                logger.info(f"Raw data keys: {list(data.keys()) if isinstance(data, dict) else 'not dict'}")
+                # RPC returns JSON directly as dict
                 if isinstance(data, dict):
                     return CategoryBreakdown(
                         category_name=data.get("category_name", category_name),
@@ -324,6 +318,7 @@ class SupabaseMarketAnalyticsService:
                         top_values=data.get("top_values") or [],
                         top_players_by_type=data.get("top_players_by_type") or {},
                     )
+                logger.warning(f"Unexpected data type: {type(data)}")
             return CategoryBreakdown(
                 category_name=category_name,
                 display_name=category_name,
@@ -402,16 +397,7 @@ class SupabaseMarketAnalyticsService:
 
             if result.data:
                 data = result.data
-                # RPC returns JSON - handle string or direct object
-                if isinstance(data, str):
-                    import json
-                    data = json.loads(data)
-                # Handle list response (RPC may return [result] or result directly)
-                if isinstance(data, list) and len(data) > 0:
-                    data = data[0]
-                # Handle nested function name key
-                if isinstance(data, dict) and "get_modifier_group_breakdown" in data:
-                    data = data["get_modifier_group_breakdown"]
+                # RPC returns JSON directly as dict
                 if isinstance(data, dict):
                     return ModifierGroupBreakdown(
                         modifier_group=data.get("modifier_group", modifier_group),
@@ -421,6 +407,7 @@ class SupabaseMarketAnalyticsService:
                         top_players_by_type=data.get("top_players_by_type") or {},
                         example_keywords=data.get("example_keywords") or [],
                     )
+                logger.warning(f"Unexpected data type for modifier group breakdown: {type(data)}")
             return ModifierGroupBreakdown(
                 modifier_group=modifier_group,
                 total_keywords=0,
