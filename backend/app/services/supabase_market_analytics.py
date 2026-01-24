@@ -251,8 +251,34 @@ class SupabaseMarketAnalyticsService:
         Returns:
             List of CategoryMarketStats ordered by total_volume descending
         """
-        # For now, return empty list - can be implemented if needed
-        return []
+        try:
+            result = self.client.rpc(
+                "get_category_market_stats",
+                {"p_market_id": self.market_id}
+            ).execute()
+
+            if result.data:
+                data = result.data
+                # RPC returns JSON - handle string or direct object
+                if isinstance(data, str):
+                    import json
+                    data = json.loads(data)
+                if isinstance(data, list):
+                    return [
+                        CategoryMarketStats(
+                            category_name=item.get("category_name", ""),
+                            display_name=item.get("display_name", ""),
+                            total_keywords=item.get("total_keywords", 0),
+                            total_volume=item.get("total_volume", 0),
+                            unique_values=item.get("unique_values", 0),
+                            top_values_preview=item.get("top_values_preview") or [],
+                        )
+                        for item in data
+                    ]
+            return []
+        except Exception as e:
+            logger.exception(f"Error getting category market stats: {e}")
+            return []
 
     async def get_category_breakdown(
         self, category_name: str, limit: int = 10
@@ -284,8 +310,32 @@ class SupabaseMarketAnalyticsService:
         Returns:
             List of ModifierGroupMarketStats ordered by total_volume descending
         """
-        # For now, return empty list - can be implemented if needed
-        return []
+        try:
+            result = self.client.rpc(
+                "get_modifier_group_market_stats",
+                {"p_market_id": self.market_id}
+            ).execute()
+
+            if result.data:
+                data = result.data
+                # RPC returns JSON - handle string or direct object
+                if isinstance(data, str):
+                    import json
+                    data = json.loads(data)
+                if isinstance(data, list):
+                    return [
+                        ModifierGroupMarketStats(
+                            modifier_group=item.get("modifier_group", ""),
+                            total_keywords=item.get("total_keywords", 0),
+                            total_volume=item.get("total_volume", 0),
+                            top_tags_preview=item.get("top_tags_preview") or [],
+                        )
+                        for item in data
+                    ]
+            return []
+        except Exception as e:
+            logger.exception(f"Error getting modifier group market stats: {e}")
+            return []
 
     async def get_modifier_group_breakdown(
         self, modifier_group: str, limit: int = 10

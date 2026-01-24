@@ -308,13 +308,33 @@ class SupabaseAnalyticsService:
         wins, _ = await self.get_brand_wins(brand_name, limit=100)
         losses, _ = await self.get_brand_losses(brand_name, limit=100)
         competitors = await self.get_top_competitors(brand_name)
+        losses_by_category = await self.get_losses_by_category(brand_name)
+
+        # Fetch brand domains
+        brand_domains = []
+        try:
+            result = self.client.table("brand_domains")\
+                .select("domain:domains(domain)")\
+                .eq("market_id", self.market_id)\
+                .eq("brand_name", brand_name)\
+                .execute()
+            if result.data:
+                brand_domains = [
+                    item["domain"]["domain"]
+                    for item in result.data
+                    if item.get("domain")
+                ]
+        except Exception as e:
+            logger.warning(f"Error fetching brand domains: {e}")
 
         return BrandProtectionDashboard(
             brand_name=brand_name,
+            brand_domains=brand_domains,
             kpis=kpis,
             wins=wins,
             losses=losses,
             top_competitors=competitors,
+            losses_by_category=losses_by_category,
         )
 
     async def get_category_opportunities(
