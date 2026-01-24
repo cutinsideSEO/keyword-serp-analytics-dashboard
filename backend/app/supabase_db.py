@@ -23,11 +23,16 @@ settings = get_settings()
 def get_supabase_client() -> Client:
     """Get a cached Supabase client instance."""
     url = settings.supabase_url
-    # Use anon key for REST API access
-    key = settings.supabase_anon_key or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNnbm9vaWt3dWhhZXdsdXdja3RlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5NzM3NTgsImV4cCI6MjA4NDU0OTc1OH0.vTVeEgkyra2K_J-P_ySmQyn1rGJ7_qKFx6IN3Auyhio"
+    key = settings.supabase_anon_key
 
     if not url:
-        url = "https://sgnooikwuhaewluwckte.supabase.co"
+        # Fallback to correct project URL
+        url = "https://jbgeyxqfufpbkniybqlb.supabase.co"
+        logger.warning(f"Using fallback Supabase URL: {url}")
+
+    if not key:
+        logger.error("SUPABASE_ANON_KEY not configured!")
+        raise ValueError("SUPABASE_ANON_KEY environment variable is required")
 
     return create_client(url, key)
 
