@@ -51,32 +51,39 @@ class SupabaseKeywordsService:
             Paginated list of keywords
         """
         try:
-            # Use direct REST API query instead of RPC
-            offset = (page - 1) * page_size
-
-            # Build the base query
-            query = self.client.table("keywords").select(
-                "*", count="exact"
-            ).eq("market_id", self.market_id)
-
-            # Apply filters
-            if search:
-                query = query.ilike("keyword", f"%{search}%")
-            if min_volume is not None:
-                query = query.gte("volume", min_volume)
-            if max_volume is not None:
-                query = query.lte("volume", max_volume)
-            if modifier_group:
-                query = query.eq("modifier_group", modifier_group)
-
-            # Apply pagination and ordering
-            query = query.order("volume", desc=True).range(offset, offset + page_size - 1)
-
-            result = query.execute()
+            # Use RPC to bypass RLS policies
+            result = self.client.rpc(
+                "get_keywords_list",
+                {
+                    "p_market_id": self.market_id,
+                    "p_page": page,
+                    "p_page_size": page_size,
+                    "p_search": search,
+                    "p_category": category,
+                    "p_category_value": category_value,
+                    "p_min_volume": min_volume,
+                    "p_max_volume": max_volume,
+                    "p_modifier_group": modifier_group,
+                }
+            ).execute()
 
             if result.data:
-                total = result.count or 0
-                total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+                data = result.data
+                # Handle different response formats:
+                # - If data is a dict with 'items', use that structure
+                # - If data is a list, use it directly as items
+                if isinstance(data, dict):
+                    raw_items = data.get("items", [])
+                    total = data.get("total", len(raw_items))
+                    total_pages = data.get("total_pages", (total + page_size - 1) // page_size if total > 0 else 0)
+                elif isinstance(data, list):
+                    raw_items = data
+                    total = len(data)
+                    total_pages = 1
+                else:
+                    raw_items = []
+                    total = 0
+                    total_pages = 0
 
                 items = [
                     KeywordWithTags(
@@ -85,9 +92,9 @@ class SupabaseKeywordsService:
                         volume=item.get("volume", 0),
                         modifier_group=item.get("modifier_group"),
                         created_at=item.get("created_at"),
-                        tags={},  # Tags require a separate join - simplified for now
+                        tags=item.get("tags") or {},
                     )
-                    for item in result.data
+                    for item in raw_items
                 ]
                 return KeywordListResponse(
                     items=items,
