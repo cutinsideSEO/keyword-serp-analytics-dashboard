@@ -553,6 +553,14 @@ class DomainVisibilityItem(BaseSchema):
     top_brands: List[str] = Field(default_factory=list)  # Top 3 brands they appear on
 
 
+class DomainWinnerItem(BaseSchema):
+    """Simplified domain winner for breakdown views."""
+
+    domain: str
+    win_count: int = 0
+    volume_captured: int = 0
+
+
 class MarketProtectionKPIs(BaseSchema):
     """Market-wide brand protection metrics."""
 
@@ -634,8 +642,8 @@ class CategoryBreakdown(BaseSchema):
     total_keywords: int = 0
     total_volume: int = 0
     top_values: List[CategoryValueMarketStats] = Field(default_factory=list)
-    # Aggregate top players across category
-    top_players_by_type: Dict[str, List[DomainVisibilityItem]] = Field(
+    # Aggregate top players across category (simplified winner items)
+    top_players_by_type: Dict[str, List[DomainWinnerItem]] = Field(
         default_factory=dict
     )
 
@@ -657,7 +665,7 @@ class ModifierGroupBreakdown(BaseSchema):
     total_keywords: int = 0
     total_volume: int = 0
     top_tags: List[Dict[str, Any]] = Field(default_factory=list)  # Tag name + count
-    top_players_by_type: Dict[str, List[DomainVisibilityItem]] = Field(
+    top_players_by_type: Dict[str, List[DomainWinnerItem]] = Field(
         default_factory=dict
     )
     example_keywords: List[Dict[str, Any]] = Field(default_factory=list)
