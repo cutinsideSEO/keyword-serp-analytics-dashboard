@@ -554,11 +554,18 @@ class DomainVisibilityItem(BaseSchema):
 
 
 class DomainWinnerItem(BaseSchema):
-    """Simplified domain winner for breakdown views."""
+    """Domain winner for breakdown views. Compatible with frontend DomainVisibilityItem."""
 
     domain: str
+    domain_type: str = ""
     win_count: int = 0
     volume_captured: int = 0
+    # Aliases for frontend compatibility
+    visibility_score: float = 0.0
+    ranking_count: int = 0
+    total_volume: int = 0
+    avg_position: float = 0.0
+    top_brands: List[str] = Field(default_factory=list)
 
 
 class MarketProtectionKPIs(BaseSchema):

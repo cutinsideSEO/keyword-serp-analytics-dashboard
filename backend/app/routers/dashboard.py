@@ -17,9 +17,11 @@ from app.schemas import (
     BrandProtectionWin,
     CategoryLossStats,
     CategoryOpportunityDashboard,
+    CategoryProtectionBreakdown,
     CompetitorBrandedDashboard,
     CompetitorStats,
     ModifierGroupOpportunityBreakdown,
+    ModifierGroupProtectionBreakdown,
     ModifierGroupStats,
 )
 from app.services.supabase_analytics import SupabaseAnalyticsService
@@ -183,6 +185,66 @@ async def get_modifier_group_stats(
     effective_market_id = market_id or get_current_market_id()
     service = SupabaseAnalyticsService(market_id=effective_market_id)
     return await service.get_modifier_group_stats(brand)
+
+
+@router.get(
+    "/brand-protection/categories/{category}/breakdown",
+    response_model=CategoryProtectionBreakdown,
+)
+async def get_category_protection_breakdown(
+    category: str,
+    brand: str = Query(..., description="Brand name to analyze"),
+    value_limit: int = Query(10, ge=1, le=50, description="Max values to return"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
+) -> CategoryProtectionBreakdown:
+    """
+    Get detailed category breakdown for brand protection.
+
+    Shows win/loss statistics by category value, competitors by type,
+    and loss distribution.
+
+    Args:
+        category: Category name to break down
+        brand: Brand name to analyze
+        value_limit: Maximum values to return
+        market_id: Market ID (optional)
+
+    Returns:
+        Detailed category protection breakdown
+    """
+    effective_market_id = market_id or get_current_market_id()
+    service = SupabaseAnalyticsService(market_id=effective_market_id)
+    return await service.get_category_protection_breakdown(brand, category, value_limit)
+
+
+@router.get(
+    "/brand-protection/modifier-groups/{modifier_group}/breakdown",
+    response_model=ModifierGroupProtectionBreakdown,
+)
+async def get_modifier_group_protection_breakdown(
+    modifier_group: str,
+    brand: str = Query(..., description="Brand name to analyze"),
+    limit: int = Query(10, ge=1, le=50, description="Max items to return"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
+) -> ModifierGroupProtectionBreakdown:
+    """
+    Get detailed modifier group breakdown for brand protection.
+
+    Shows win/loss statistics by tag, competitors by type,
+    loss distribution, and example keywords.
+
+    Args:
+        modifier_group: Modifier group to break down
+        brand: Brand name to analyze
+        limit: Maximum items to return
+        market_id: Market ID (optional)
+
+    Returns:
+        Detailed modifier group protection breakdown
+    """
+    effective_market_id = market_id or get_current_market_id()
+    service = SupabaseAnalyticsService(market_id=effective_market_id)
+    return await service.get_modifier_group_protection_breakdown(brand, modifier_group, limit)
 
 
 @router.get("/category-opportunities", response_model=CategoryOpportunityDashboard)

@@ -14,17 +14,25 @@ from app.schemas import (
     BrandProtectionKPIs,
     BrandProtectionLoss,
     BrandProtectionWin,
+    CategoryCompetitor,
     CategoryLossStats,
     CategoryOpportunityDashboard,
     CategoryOpportunityKPIs,
+    CategoryProtectionBreakdown,
+    CategoryValueProtectionStats,
     CompetitorBrandedDashboard,
     CompetitorStats,
+    DomainTypeLossDetail,
+    ExampleLoserKeyword,
+    ExampleWinnerKeyword,
     ModifierGroupOpportunity,
     ModifierGroupOpportunityBreakdown,
+    ModifierGroupProtectionBreakdown,
     ModifierGroupStats,
     OpportunityCompetitor,
     OpportunityCategoryValue,
     OpportunityKeywordDetail,
+    TagProtectionStats,
 )
 
 logger = logging.getLogger(__name__)
@@ -615,3 +623,195 @@ class SupabaseAnalyticsService:
                 competitors_by_type={},
                 example_keywords=[],
             )
+
+    async def get_category_protection_breakdown(
+        self, brand_name: str, category_name: str, value_limit: int = 10
+    ) -> CategoryProtectionBreakdown:
+        """
+        Get detailed category breakdown for brand protection.
+
+        Args:
+            brand_name: Brand to analyze
+            category_name: Category to break down
+            value_limit: Max values to return
+
+        Returns:
+            CategoryProtectionBreakdown with detailed stats
+        """
+        try:
+            result = self.client.rpc(
+                "get_category_protection_breakdown",
+                {
+                    "p_market_id": self.market_id,
+                    "p_brand_name": brand_name,
+                    "p_category_name": category_name,
+                    "p_limit": value_limit,
+                }
+            ).execute()
+
+            if result.data:
+                data = result.data
+                if isinstance(data, list) and len(data) > 0:
+                    data = data[0]
+                top_values = [
+                    CategoryValueProtectionStats(
+                        value=v.get("value", ""),
+                        total_keywords=v.get("total_keywords", 0),
+                        total_volume=v.get("total_volume", 0),
+                        keywords_winning=v.get("keywords_winning", 0),
+                        keywords_losing=v.get("keywords_losing", 0),
+                        volume_winning=v.get("volume_winning", 0),
+                        volume_losing=v.get("volume_losing", 0),
+                        win_rate=v.get("win_rate", 0),
+                        avg_brand_position=v.get("avg_brand_position"),
+                        example_winners=[
+                            ExampleWinnerKeyword(**w) for w in v.get("example_winners") or []
+                        ],
+                        example_losers=[
+                            ExampleLoserKeyword(**l) for l in v.get("example_losers") or []
+                        ],
+                    )
+                    for v in data.get("top_values") or []
+                ]
+                competitors_by_type = {}
+                for dtype, comps in (data.get("competitors_by_type") or {}).items():
+                    competitors_by_type[dtype] = [
+                        CategoryCompetitor(
+                            domain=c.get("domain", ""),
+                            domain_type=c.get("domain_type", dtype),
+                            wins_count=c.get("wins_count", 0),
+                            wins_volume=c.get("wins_volume", 0),
+                            avg_position=c.get("avg_position", 0),
+                        )
+                        for c in comps or []
+                    ]
+                loss_distribution = [
+                    DomainTypeLossDetail(
+                        domain_type=d.get("domain_type", ""),
+                        loss_count=d.get("loss_count", 0),
+                        loss_volume=d.get("loss_volume", 0),
+                        percentage=d.get("percentage", 0),
+                    )
+                    for d in data.get("loss_distribution_by_type") or []
+                ]
+                return CategoryProtectionBreakdown(
+                    category_name=data.get("category_name", category_name),
+                    display_name=data.get("display_name", category_name),
+                    total_keywords=data.get("total_keywords", 0),
+                    total_volume=data.get("total_volume", 0),
+                    keywords_winning=data.get("keywords_winning", 0),
+                    keywords_losing=data.get("keywords_losing", 0),
+                    volume_winning=data.get("volume_winning", 0),
+                    volume_losing=data.get("volume_losing", 0),
+                    win_rate=data.get("win_rate", 0),
+                    avg_brand_position=data.get("avg_brand_position"),
+                    top_values=top_values,
+                    competitors_by_type=competitors_by_type,
+                    loss_distribution_by_type=loss_distribution,
+                )
+            return CategoryProtectionBreakdown(
+                category_name=category_name,
+                display_name=category_name,
+            )
+        except Exception as e:
+            logger.exception(f"Error getting category protection breakdown: {e}")
+            return CategoryProtectionBreakdown(
+                category_name=category_name,
+                display_name=category_name,
+            )
+
+    async def get_modifier_group_protection_breakdown(
+        self, brand_name: str, modifier_group: str, limit: int = 10
+    ) -> ModifierGroupProtectionBreakdown:
+        """
+        Get detailed modifier group breakdown for brand protection.
+
+        Args:
+            brand_name: Brand to analyze
+            modifier_group: Modifier group to break down
+            limit: Max items to return
+
+        Returns:
+            ModifierGroupProtectionBreakdown with detailed stats
+        """
+        try:
+            result = self.client.rpc(
+                "get_modifier_group_protection_breakdown",
+                {
+                    "p_market_id": self.market_id,
+                    "p_brand_name": brand_name,
+                    "p_modifier_group": modifier_group,
+                    "p_limit": limit,
+                }
+            ).execute()
+
+            if result.data:
+                data = result.data
+                if isinstance(data, list) and len(data) > 0:
+                    data = data[0]
+                top_tags = [
+                    TagProtectionStats(
+                        tag=t.get("tag", ""),
+                        count=t.get("count", 0),
+                        win_rate=t.get("win_rate", 0),
+                    )
+                    for t in data.get("top_tags") or []
+                ]
+                competitors_by_type = {}
+                for dtype, comps in (data.get("competitors_by_type") or {}).items():
+                    competitors_by_type[dtype] = [
+                        CategoryCompetitor(
+                            domain=c.get("domain", ""),
+                            domain_type=c.get("domain_type", dtype),
+                            wins_count=c.get("wins_count", 0),
+                            wins_volume=c.get("wins_volume", 0),
+                            avg_position=c.get("avg_position", 0),
+                        )
+                        for c in comps or []
+                    ]
+                loss_distribution = [
+                    DomainTypeLossDetail(
+                        domain_type=d.get("domain_type", ""),
+                        loss_count=d.get("loss_count", 0),
+                        loss_volume=d.get("loss_volume", 0),
+                        percentage=d.get("percentage", 0),
+                    )
+                    for d in data.get("loss_distribution_by_type") or []
+                ]
+                example_winners = [
+                    ExampleWinnerKeyword(
+                        keyword=w.get("keyword", ""),
+                        volume=w.get("volume", 0),
+                        url=w.get("url", ""),
+                    )
+                    for w in data.get("example_winners") or []
+                ]
+                example_losers = [
+                    ExampleLoserKeyword(
+                        keyword=l.get("keyword", ""),
+                        volume=l.get("volume", 0),
+                        winner_domain=l.get("winner_domain", ""),
+                        winner_position=l.get("winner_position", 1),
+                    )
+                    for l in data.get("example_losers") or []
+                ]
+                return ModifierGroupProtectionBreakdown(
+                    modifier_group=data.get("modifier_group", modifier_group),
+                    total_keywords=data.get("total_keywords", 0),
+                    total_volume=data.get("total_volume", 0),
+                    keywords_winning=data.get("keywords_winning", 0),
+                    keywords_losing=data.get("keywords_losing", 0),
+                    volume_winning=data.get("volume_winning", 0),
+                    volume_losing=data.get("volume_losing", 0),
+                    win_rate=data.get("win_rate", 0),
+                    avg_brand_position=data.get("avg_brand_position"),
+                    top_tags=top_tags,
+                    competitors_by_type=competitors_by_type,
+                    loss_distribution_by_type=loss_distribution,
+                    example_winners=example_winners,
+                    example_losers=example_losers,
+                )
+            return ModifierGroupProtectionBreakdown(modifier_group=modifier_group)
+        except Exception as e:
+            logger.exception(f"Error getting modifier group protection breakdown: {e}")
+            return ModifierGroupProtectionBreakdown(modifier_group=modifier_group)
