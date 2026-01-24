@@ -337,6 +337,9 @@ class SupabaseAnalyticsService:
 
             if result.data:
                 data = result.data
+                # Handle both list and dict responses from RPC
+                if isinstance(data, list) and len(data) > 0:
+                    data = data[0]
                 kpis = CategoryOpportunityKPIs(
                     total_nonbranded_keywords=data.get("total_nonbranded_keywords", 0),
                     total_nonbranded_volume=data.get("total_nonbranded_volume", 0),
@@ -415,6 +418,9 @@ class SupabaseAnalyticsService:
 
             if result.data:
                 data = result.data
+                # Handle both list and dict responses from RPC
+                if isinstance(data, list) and len(data) > 0:
+                    data = data[0]
                 kpis = CategoryOpportunityKPIs(
                     total_nonbranded_keywords=data.get("total_competitor_keywords", 0),
                     total_nonbranded_volume=data.get("total_competitor_volume", 0),
@@ -503,6 +509,9 @@ class SupabaseAnalyticsService:
 
             if result.data:
                 data = result.data
+                # Handle both list and dict responses from RPC
+                if isinstance(data, list) and len(data) > 0:
+                    data = data[0]
                 top_values = [
                     OpportunityCategoryValue(
                         category_name=v.get("category_name", ""),
