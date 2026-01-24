@@ -388,7 +388,7 @@ class SupabaseAnalyticsService:
                                 domain=c.get("domain", ""),
                                 domain_type=c.get("domain_type"),
                                 wins_count=c.get("wins_count", 0),
-                                volume_captured=c.get("volume_captured", 0),
+                                wins_volume=c.get("volume_captured", 0),
                             )
                             for c in mg.get("top_competitors", []) or []
                         ],
@@ -469,7 +469,7 @@ class SupabaseAnalyticsService:
                                 domain=c.get("domain", ""),
                                 domain_type=c.get("domain_type"),
                                 wins_count=c.get("wins_count", 0),
-                                volume_captured=c.get("volume_captured", 0),
+                                wins_volume=c.get("volume_captured", 0),
                             )
                             for c in mg.get("top_competitors", []) or []
                         ],
@@ -562,7 +562,7 @@ class SupabaseAnalyticsService:
                             domain=c.get("domain", ""),
                             domain_type=c.get("domain_type"),
                             wins_count=c.get("wins_count", 0),
-                            volume_captured=c.get("volume_captured", 0),
+                            wins_volume=c.get("volume_captured", 0),
                         )
                         for c in comps or []
                     ]
