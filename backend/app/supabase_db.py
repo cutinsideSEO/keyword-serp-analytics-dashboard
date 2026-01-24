@@ -26,8 +26,8 @@ def get_supabase_client() -> Client:
     key = settings.supabase_anon_key
 
     if not url:
-        # Fallback to correct project URL
-        url = "https://jbgeyxqfufpbkniybqlb.supabase.co"
+        # Fallback to correct project URL (Market Research project)
+        url = "https://sgnooikwuhaewluwckte.supabase.co"
         logger.warning(f"Using fallback Supabase URL: {url}")
 
     if not key:
