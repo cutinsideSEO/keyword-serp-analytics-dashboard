@@ -309,14 +309,21 @@ class SupabaseMarketAnalyticsService:
                 if isinstance(data, str):
                     import json
                     data = json.loads(data)
-                return CategoryBreakdown(
-                    category_name=data.get("category_name", category_name),
-                    display_name=data.get("display_name", category_name),
-                    total_keywords=data.get("total_keywords", 0),
-                    total_volume=data.get("total_volume", 0),
-                    top_values=data.get("top_values") or [],
-                    top_players_by_type=data.get("top_players_by_type") or {},
-                )
+                # Handle list response (RPC may return [result] or result directly)
+                if isinstance(data, list) and len(data) > 0:
+                    data = data[0]
+                # Handle nested function name key
+                if isinstance(data, dict) and "get_category_breakdown" in data:
+                    data = data["get_category_breakdown"]
+                if isinstance(data, dict):
+                    return CategoryBreakdown(
+                        category_name=data.get("category_name", category_name),
+                        display_name=data.get("display_name", category_name),
+                        total_keywords=data.get("total_keywords", 0),
+                        total_volume=data.get("total_volume", 0),
+                        top_values=data.get("top_values") or [],
+                        top_players_by_type=data.get("top_players_by_type") or {},
+                    )
             return CategoryBreakdown(
                 category_name=category_name,
                 display_name=category_name,
@@ -399,14 +406,21 @@ class SupabaseMarketAnalyticsService:
                 if isinstance(data, str):
                     import json
                     data = json.loads(data)
-                return ModifierGroupBreakdown(
-                    modifier_group=data.get("modifier_group", modifier_group),
-                    total_keywords=data.get("total_keywords", 0),
-                    total_volume=data.get("total_volume", 0),
-                    top_tags=data.get("top_tags") or [],
-                    top_players_by_type=data.get("top_players_by_type") or {},
-                    example_keywords=data.get("example_keywords") or [],
-                )
+                # Handle list response (RPC may return [result] or result directly)
+                if isinstance(data, list) and len(data) > 0:
+                    data = data[0]
+                # Handle nested function name key
+                if isinstance(data, dict) and "get_modifier_group_breakdown" in data:
+                    data = data["get_modifier_group_breakdown"]
+                if isinstance(data, dict):
+                    return ModifierGroupBreakdown(
+                        modifier_group=data.get("modifier_group", modifier_group),
+                        total_keywords=data.get("total_keywords", 0),
+                        total_volume=data.get("total_volume", 0),
+                        top_tags=data.get("top_tags") or [],
+                        top_players_by_type=data.get("top_players_by_type") or {},
+                        example_keywords=data.get("example_keywords") or [],
+                    )
             return ModifierGroupBreakdown(
                 modifier_group=modifier_group,
                 total_keywords=0,
