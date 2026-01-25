@@ -94,6 +94,22 @@ def extract_domain(url: str) -> str:
         return url.lower()
 
 
+def sanitize_text(text: Optional[str]) -> Optional[str]:
+    """
+    Sanitize text by removing null characters that PostgreSQL doesn't support.
+
+    Args:
+        text: Input text that may contain null characters
+
+    Returns:
+        Sanitized text with null characters removed
+    """
+    if text is None:
+        return None
+    # Remove null characters (\x00 / \u0000) which PostgreSQL rejects
+    return text.replace("\x00", "").replace("\u0000", "")
+
+
 class DataImportService:
     """Service for importing data from source files into the database."""
 
@@ -122,43 +138,50 @@ class DataImportService:
 
         counts = {}
 
-        # Get keyword IDs for this market for cascading deletes
-        keyword_ids_query = select(Keyword.id).where(Keyword.market_id == self.market_id)
-        result = await self.session.execute(keyword_ids_query)
-        keyword_ids = [row[0] for row in result.all()]
+        # Use raw SQL with subqueries to avoid parameter limits
+        # Delete SERP results for keywords in this market
+        result = await self.session.execute(
+            text("""
+                DELETE FROM serp_results
+                WHERE keyword_id IN (
+                    SELECT id FROM keywords WHERE market_id = :market_id
+                )
+            """),
+            {"market_id": self.market_id}
+        )
+        counts["serp_results"] = result.rowcount
 
-        # Get domain IDs for this market
-        domain_ids_query = select(Domain.id).where(Domain.market_id == self.market_id)
-        result = await self.session.execute(domain_ids_query)
-        domain_ids = [row[0] for row in result.all()]
+        # Delete keyword tags for keywords in this market
+        result = await self.session.execute(
+            text("""
+                DELETE FROM keyword_tags
+                WHERE keyword_id IN (
+                    SELECT id FROM keywords WHERE market_id = :market_id
+                )
+            """),
+            {"market_id": self.market_id}
+        )
+        counts["keyword_tags"] = result.rowcount
 
-        # Delete in order due to foreign key constraints
-        if keyword_ids:
-            result = await self.session.execute(
-                delete(SerpResult).where(SerpResult.keyword_id.in_(keyword_ids))
-            )
-            counts["serp_results"] = result.rowcount
-
-            result = await self.session.execute(
-                delete(KeywordTag).where(KeywordTag.keyword_id.in_(keyword_ids))
-            )
-            counts["keyword_tags"] = result.rowcount
-
+        # Delete brand domains for this market
         result = await self.session.execute(
             delete(BrandDomain).where(BrandDomain.market_id == self.market_id)
         )
         counts["brand_domains"] = result.rowcount
 
+        # Delete keywords for this market
         result = await self.session.execute(
             delete(Keyword).where(Keyword.market_id == self.market_id)
         )
         counts["keywords"] = result.rowcount
 
+        # Delete domains for this market
         result = await self.session.execute(
             delete(Domain).where(Domain.market_id == self.market_id)
         )
         counts["domains"] = result.rowcount
 
+        # Delete categories for this market
         result = await self.session.execute(
             delete(Category).where(Category.market_id == self.market_id)
         )
@@ -288,9 +311,194 @@ class DataImportService:
         self._keyword_cache[cache_key] = db_keyword.id
         return db_keyword.id, is_new
 
+    # =========================================================================
+    # BULK INSERT METHODS (Optimized for large imports)
+    # =========================================================================
+
+    async def _bulk_insert_keywords(
+        self, keyword_data: List[Dict[str, Any]]
+    ) -> Dict[str, int]:
+        """
+        Bulk insert keywords and return mapping of keyword -> id.
+
+        Args:
+            keyword_data: List of dicts with keys: keyword, volume, modifier_group
+
+        Returns:
+            Dict mapping keyword string to database id
+        """
+        if not keyword_data:
+            return {}
+
+        # Use INSERT ... ON CONFLICT with RETURNING to get IDs
+        # Note: Use CAST() instead of :: to avoid SQLAlchemy parameter parsing issues
+        result = await self.session.execute(
+            text("""
+                INSERT INTO keywords (market_id, keyword, volume, modifier_group, created_at)
+                SELECT
+                    :market_id,
+                    d.keyword,
+                    CAST(d.volume AS INTEGER),
+                    d.modifier_group,
+                    NOW()
+                FROM jsonb_to_recordset(CAST(:data AS jsonb)) AS d(
+                    keyword TEXT,
+                    volume INTEGER,
+                    modifier_group TEXT
+                )
+                ON CONFLICT (market_id, keyword) DO UPDATE
+                    SET volume = EXCLUDED.volume
+                RETURNING id, keyword
+            """),
+            {
+                "market_id": self.market_id,
+                "data": orjson.dumps(keyword_data).decode()
+            }
+        )
+
+        # Build keyword -> id mapping
+        return {row.keyword: row.id for row in result.fetchall()}
+
+    async def _bulk_insert_tags(
+        self, tag_data: List[Dict[str, Any]]
+    ) -> int:
+        """
+        Bulk insert keyword tags.
+
+        Args:
+            tag_data: List of dicts with keys: keyword_id, category_id, value
+
+        Returns:
+            Number of tags inserted
+        """
+        if not tag_data:
+            return 0
+
+        result = await self.session.execute(
+            text("""
+                INSERT INTO keyword_tags (keyword_id, category_id, value, created_at)
+                SELECT
+                    CAST(d.keyword_id AS INTEGER),
+                    CAST(d.category_id AS INTEGER),
+                    d.value,
+                    NOW()
+                FROM jsonb_to_recordset(CAST(:data AS jsonb)) AS d(
+                    keyword_id INTEGER,
+                    category_id INTEGER,
+                    value TEXT
+                )
+                ON CONFLICT (keyword_id, category_id) DO UPDATE
+                    SET value = EXCLUDED.value
+            """),
+            {"data": orjson.dumps(tag_data).decode()}
+        )
+
+        return result.rowcount or len(tag_data)
+
+    async def _bulk_insert_domains(
+        self, domains: List[str]
+    ) -> Dict[str, int]:
+        """
+        Bulk insert domains and return mapping of domain -> id.
+
+        Args:
+            domains: List of domain strings
+
+        Returns:
+            Dict mapping domain string to database id
+        """
+        if not domains:
+            return {}
+
+        # Deduplicate
+        unique_domains = list(set(domains))
+
+        result = await self.session.execute(
+            text("""
+                INSERT INTO domains (market_id, domain, created_at)
+                SELECT :market_id, d.domain, NOW()
+                FROM jsonb_to_recordset(CAST(:data AS jsonb)) AS d(domain TEXT)
+                ON CONFLICT (market_id, domain) DO UPDATE
+                    SET domain = EXCLUDED.domain
+                RETURNING id, domain
+            """),
+            {
+                "market_id": self.market_id,
+                "data": orjson.dumps([{"domain": d} for d in unique_domains]).decode()
+            }
+        )
+
+        return {row.domain: row.id for row in result.fetchall()}
+
+    async def _bulk_insert_serp_results(
+        self, serp_data: List[Dict[str, Any]]
+    ) -> int:
+        """
+        Bulk insert SERP results.
+
+        Args:
+            serp_data: List of dicts with SERP result data
+
+        Returns:
+            Number of results inserted
+        """
+        if not serp_data:
+            return 0
+
+        result = await self.session.execute(
+            text("""
+                INSERT INTO serp_results (
+                    keyword_id, domain_id, rank_group, rank_absolute,
+                    page, result_type, title, description, url, created_at
+                )
+                SELECT
+                    CAST(d.keyword_id AS INTEGER),
+                    CAST(d.domain_id AS INTEGER),
+                    CAST(d.rank_group AS INTEGER),
+                    CAST(d.rank_absolute AS INTEGER),
+                    CAST(d.page AS INTEGER),
+                    d.result_type,
+                    d.title,
+                    d.description,
+                    d.url,
+                    NOW()
+                FROM jsonb_to_recordset(CAST(:data AS jsonb)) AS d(
+                    keyword_id INTEGER,
+                    domain_id INTEGER,
+                    rank_group INTEGER,
+                    rank_absolute INTEGER,
+                    page INTEGER,
+                    result_type TEXT,
+                    title TEXT,
+                    description TEXT,
+                    url TEXT
+                )
+            """),
+            {"data": orjson.dumps(serp_data).decode()}
+        )
+
+        return result.rowcount or len(serp_data)
+
+    async def _preload_keyword_ids(self) -> Dict[str, int]:
+        """
+        Load all keyword IDs for the market in one query.
+
+        Returns:
+            Dict mapping keyword string to database id
+        """
+        result = await self.session.execute(
+            select(Keyword.id, Keyword.keyword)
+            .where(Keyword.market_id == self.market_id)
+        )
+        return {row.keyword: row.id for row in result.fetchall()}
+
+    # =========================================================================
+    # IMPORT METHODS
+    # =========================================================================
+
     async def import_csv(self, csv_path: Path) -> Dict[str, Any]:
         """
-        Import keyword data from CSV file.
+        Import keyword data from CSV file using bulk operations.
 
         The CSV must have these columns (case-insensitive):
         - Keyword: The keyword string
@@ -305,7 +513,7 @@ class DataImportService:
         Returns:
             Import statistics dictionary
         """
-        logger.info(f"Starting CSV import from: {csv_path}")
+        logger.info(f"Starting CSV import (BULK MODE) from: {csv_path}")
 
         stats = {
             "keywords_imported": 0,
@@ -348,16 +556,32 @@ class DataImportService:
                 stats["categories_created"] += 1
 
         await self.session.commit()
+        logger.info(f"Created {stats['categories_created']} categories")
 
-        # Second pass: import keywords and tags
+        # Second pass: load ALL rows into memory for batch processing
+        logger.info("Loading CSV into memory...")
+        all_rows = []
         with open(csv_path, "r", encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
-
-            batch_size = 500
-            batch_count = 0
-
             for row in reader:
-                try:
+                all_rows.append(row)
+
+        total_rows = len(all_rows)
+        logger.info(f"Loaded {total_rows} rows into memory")
+
+        # Process in large batches
+        batch_size = 5000  # Much larger batches for bulk insert
+
+        for batch_start in range(0, total_rows, batch_size):
+            batch_end = min(batch_start + batch_size, total_rows)
+            batch_rows = all_rows[batch_start:batch_end]
+
+            try:
+                # Step 1: Prepare keyword data for bulk insert
+                keyword_data = []
+                row_keyword_map = {}  # Map row index to keyword string
+
+                for i, row in enumerate(batch_rows):
                     keyword_str = row.get(keyword_col, "").strip()
                     if not keyword_str:
                         continue
@@ -369,66 +593,82 @@ class DataImportService:
                     except ValueError:
                         volume = 0
 
-                    modifier_group = row.get(modifier_col, "").strip() if modifier_col else ""
+                    modifier_group = row.get(modifier_col, "").strip() if modifier_col else None
 
-                    # Create keyword (or get existing)
-                    keyword_id, is_new = await self._get_or_create_keyword(
-                        keyword_str, volume, modifier_group
-                    )
+                    keyword_data.append({
+                        "keyword": keyword_str,
+                        "volume": volume,
+                        "modifier_group": modifier_group
+                    })
+                    row_keyword_map[i] = keyword_str
 
-                    if is_new:
-                        stats["keywords_imported"] += 1
-                    else:
-                        stats["duplicate_keywords_skipped"] += 1
+                # Step 2: Bulk insert keywords (ONE DB call for entire batch)
+                keyword_id_map = await self._bulk_insert_keywords(keyword_data)
+                stats["keywords_imported"] += len(keyword_id_map)
 
-                    # Only create tags for NEW keywords
-                    # If keyword already exists, skip tags (they were already added)
-                    if is_new:
-                        # Track which categories we've already added for this keyword
-                        added_categories = set()
+                # Update cache with new IDs
+                for keyword_str, keyword_id in keyword_id_map.items():
+                    cache_key = f"{self.market_id}:{keyword_str}"
+                    self._keyword_cache[cache_key] = keyword_id
 
-                        for col in tag_columns:
-                            value = row.get(col, "").strip()
-                            if value:
-                                category_name = normalize_category_name(col)
+                # Step 3: Prepare tag data using the returned IDs
+                tag_data = []
+                seen_keyword_categories = set()  # Track (keyword_id, category_id) pairs
 
-                                # Skip if we've already added this category for this keyword
-                                # (handles duplicate column names that normalize to same thing)
-                                if category_name in added_categories:
+                for i, row in enumerate(batch_rows):
+                    keyword_str = row_keyword_map.get(i)
+                    if not keyword_str:
+                        continue
+
+                    keyword_id = keyword_id_map.get(keyword_str)
+                    if not keyword_id:
+                        continue
+
+                    for col in tag_columns:
+                        value = row.get(col, "").strip()
+                        if value:
+                            category_name = normalize_category_name(col)
+                            cache_key = f"{self.market_id}:{category_name}"
+                            category_id = self._category_cache.get(cache_key)
+
+                            if category_id:
+                                # Skip duplicates within this batch
+                                pair_key = (keyword_id, category_id)
+                                if pair_key in seen_keyword_categories:
                                     continue
+                                seen_keyword_categories.add(pair_key)
 
-                                category_id = self._category_cache[category_name]
+                                tag_data.append({
+                                    "keyword_id": keyword_id,
+                                    "category_id": category_id,
+                                    "value": value
+                                })
 
-                                tag = KeywordTag(
-                                    keyword_id=keyword_id,
-                                    category_id=category_id,
-                                    value=value,
-                                )
-                                self.session.add(tag)
-                                added_categories.add(category_name)
-                                stats["tags_imported"] += 1
+                # Step 4: Bulk insert tags (ONE DB call for entire batch)
+                if tag_data:
+                    tags_inserted = await self._bulk_insert_tags(tag_data)
+                    stats["tags_imported"] += tags_inserted
 
-                    batch_count += 1
-                    if batch_count >= batch_size:
-                        await self.session.commit()
-                        batch_count = 0
-                        logger.info(f"Imported {stats['keywords_imported']} keywords...")
+                # Commit this batch
+                await self.session.commit()
 
-                except Exception as e:
-                    # Rollback the session to recover from the error
-                    await self.session.rollback()
-                    error_msg = f"Error importing keyword '{row.get(keyword_col, 'unknown')}': {str(e)}"
-                    logger.error(error_msg)
-                    stats["errors"].append(error_msg)
-                    batch_count = 0  # Reset batch count after error
+                logger.info(
+                    f"Imported batch {batch_start}-{batch_end} "
+                    f"({stats['keywords_imported']} keywords, {stats['tags_imported']} tags)"
+                )
 
-        await self.session.commit()
+            except Exception as e:
+                await self.session.rollback()
+                error_msg = f"Error importing batch {batch_start}-{batch_end}: {str(e)}"
+                logger.error(error_msg)
+                stats["errors"].append(error_msg)
+
         logger.info(f"CSV import complete: {stats}")
         return stats
 
     async def import_serp_json(self, json_path: Path) -> Dict[str, Any]:
         """
-        Import SERP data from JSON file.
+        Import SERP data from JSON file using bulk operations.
 
         The JSON structure is:
         {
@@ -456,7 +696,7 @@ class DataImportService:
         Returns:
             Import statistics dictionary
         """
-        logger.info(f"Starting SERP JSON import from: {json_path}")
+        logger.info(f"Starting SERP JSON import (BULK MODE) from: {json_path}")
 
         stats = {
             "serp_results_imported": 0,
@@ -475,81 +715,142 @@ class DataImportService:
         total_keywords = len(keywords_data)
         logger.info(f"Found {total_keywords} keywords in SERP data")
 
-        # Process in batches
-        batch_size = 100
-        processed = 0
-        batch_results: List[SerpResult] = []
+        # Step 1: Pre-load ALL keyword IDs in one query
+        logger.info("Pre-loading keyword IDs...")
+        keyword_id_map = await self._preload_keyword_ids()
+        logger.info(f"Loaded {len(keyword_id_map)} keyword IDs")
+
+        # Step 2: First pass - collect all unique domains
+        logger.info("Extracting unique domains...")
+        all_domains = set()
+        for keyword_str, results in keywords_data.items():
+            if keyword_str not in keyword_id_map:
+                continue
+            for serp_item in results:
+                if isinstance(serp_item, dict):
+                    url = serp_item.get("url", "")
+                    domain = serp_item.get("domain", "") or extract_domain(url)
+                    if domain:
+                        all_domains.add(domain)
+
+        logger.info(f"Found {len(all_domains)} unique domains")
+
+        # Step 3: Bulk insert all domains (ONE DB call)
+        logger.info("Bulk inserting domains...")
+        domain_id_map = await self._bulk_insert_domains(list(all_domains))
+        await self.session.commit()
+        stats["domains_found"] = len(domain_id_map)
+        logger.info(f"Inserted/updated {len(domain_id_map)} domains")
+
+        # Update domain cache
+        for domain_str, domain_id in domain_id_map.items():
+            cache_key = f"{self.market_id}:{domain_str}"
+            self._domain_cache[cache_key] = domain_id
+
+        # Step 4: Process SERP results in batches
+        # Use smaller batches to avoid Supabase statement timeout (60s default)
+        batch_size = 2000  # Smaller batches for reliability
+        serp_batch = []
+        processed_keywords = 0
+
+        async def insert_batch_with_retry(batch: List[Dict], max_retries: int = 3) -> int:
+            """Insert batch with exponential backoff on smaller chunks if timeout occurs."""
+            current_batch = batch
+            chunk_size = len(batch)
+
+            for attempt in range(max_retries):
+                try:
+                    if chunk_size < len(batch):
+                        # Split into smaller chunks and insert sequentially
+                        total_inserted = 0
+                        for i in range(0, len(batch), chunk_size):
+                            chunk = batch[i:i + chunk_size]
+                            inserted = await self._bulk_insert_serp_results(chunk)
+                            total_inserted += inserted
+                            await self.session.commit()
+                        return total_inserted
+                    else:
+                        inserted = await self._bulk_insert_serp_results(current_batch)
+                        await self.session.commit()
+                        return inserted
+                except Exception as e:
+                    await self.session.rollback()
+                    error_str = str(e).lower()
+
+                    # Check if it's a timeout error
+                    if "timeout" in error_str or "cancel" in error_str:
+                        # Reduce chunk size by half for next attempt
+                        chunk_size = max(100, chunk_size // 2)
+                        logger.warning(
+                            f"Timeout on batch insert (attempt {attempt + 1}), "
+                            f"retrying with chunk_size={chunk_size}"
+                        )
+                        continue
+                    else:
+                        # Non-timeout error, don't retry
+                        raise
+
+            # All retries exhausted
+            raise Exception(f"Failed to insert batch after {max_retries} retries")
 
         for keyword_str, results in keywords_data.items():
-            try:
-                # Find the keyword in the database
-                if keyword_str not in self._keyword_cache:
-                    result = await self.session.execute(
-                        select(Keyword).where(Keyword.keyword == keyword_str)
-                    )
-                    db_keyword = result.scalar_one_or_none()
-                    if db_keyword:
-                        self._keyword_cache[keyword_str] = db_keyword.id
-                    else:
-                        stats["keywords_not_found"] += 1
-                        continue
+            keyword_id = keyword_id_map.get(keyword_str)
+            if not keyword_id:
+                stats["keywords_not_found"] += 1
+                continue
 
-                keyword_id = self._keyword_cache[keyword_str]
-                stats["keywords_matched"] += 1
+            stats["keywords_matched"] += 1
 
-                # Process each SERP result
-                for serp_item in results:
-                    if not isinstance(serp_item, dict):
-                        continue
+            for serp_item in results:
+                if not isinstance(serp_item, dict):
+                    continue
 
-                    # Extract domain from URL or use provided domain
-                    url = serp_item.get("url", "")
-                    domain_str = serp_item.get("domain", "") or extract_domain(url)
+                url = serp_item.get("url", "")
+                domain = serp_item.get("domain", "") or extract_domain(url)
+                domain_id = domain_id_map.get(domain)
 
-                    if not domain_str:
-                        continue
+                if not domain_id:
+                    continue
 
-                    # Get or create domain
-                    domain_id = await self._get_or_create_domain(domain_str)
+                serp_batch.append({
+                    "keyword_id": keyword_id,
+                    "domain_id": domain_id,
+                    "rank_group": serp_item.get("rank_group", 0),
+                    "rank_absolute": serp_item.get("rank_absolute", 0),
+                    "page": serp_item.get("page", 1),
+                    "result_type": serp_item.get("type", "organic"),
+                    "title": sanitize_text(serp_item.get("title")),
+                    "description": sanitize_text(serp_item.get("description")),
+                    "url": sanitize_text(url),
+                })
 
-                    # Create SERP result
-                    serp_result = SerpResult(
-                        keyword_id=keyword_id,
-                        domain_id=domain_id,
-                        rank_group=serp_item.get("rank_group", 0),
-                        rank_absolute=serp_item.get("rank_absolute", 0),
-                        page=serp_item.get("page", 1),
-                        result_type=serp_item.get("type", "organic"),
-                        title=serp_item.get("title"),
-                        description=serp_item.get("description"),
-                        url=url,
-                    )
-                    batch_results.append(serp_result)
-                    stats["serp_results_imported"] += 1
+            processed_keywords += 1
 
-                processed += 1
-
-                # Commit batch
-                if processed % batch_size == 0:
-                    self.session.add_all(batch_results)
-                    await self.session.commit()
-                    batch_results = []
+            # Flush batch when full
+            if len(serp_batch) >= batch_size:
+                try:
+                    inserted = await insert_batch_with_retry(serp_batch)
+                    stats["serp_results_imported"] += inserted
                     logger.info(
-                        f"Processed {processed}/{total_keywords} keywords "
+                        f"Processed {processed_keywords}/{total_keywords} keywords "
                         f"({stats['serp_results_imported']} SERP results)"
                     )
+                except Exception as e:
+                    error_msg = f"Error inserting SERP batch: {str(e)}"
+                    logger.error(error_msg)
+                    stats["errors"].append(error_msg)
+                serp_batch = []
 
+        # Final batch
+        if serp_batch:
+            try:
+                inserted = await insert_batch_with_retry(serp_batch)
+                stats["serp_results_imported"] += inserted
             except Exception as e:
-                error_msg = f"Error processing keyword '{keyword_str}': {str(e)}"
+                error_msg = f"Error inserting final SERP batch: {str(e)}"
                 logger.error(error_msg)
                 stats["errors"].append(error_msg)
 
-        # Final batch
-        if batch_results:
-            self.session.add_all(batch_results)
-            await self.session.commit()
-
-        stats["domains_found"] = len(self._domain_cache)
         logger.info(f"SERP JSON import complete: {stats}")
         return stats
 

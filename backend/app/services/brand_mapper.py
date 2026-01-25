@@ -13,8 +13,9 @@ import json
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
+import orjson
 from anthropic import Anthropic
-from sqlalchemy import case, distinct, func, select
+from sqlalchemy import case, distinct, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -23,6 +24,16 @@ from app.models import BrandDomain, Category, Domain, Keyword, KeywordTag, Marke
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+
+def normalize_category_name(name: str) -> str:
+    """
+    Normalize category name to match database format.
+
+    Config files may use display names like "Insurance Company - Canonical"
+    but categories are stored with normalized names like "insurance_company___canonical".
+    """
+    return name.lower().strip().replace(" ", "_").replace("-", "_")
 
 
 class BrandMapperService:
@@ -77,6 +88,96 @@ class BrandMapperService:
                 return dt
         return self._domain_types[0] if self._domain_types else None
 
+    # =========================================================================
+    # BULK OPERATION METHODS (Optimized for performance)
+    # =========================================================================
+
+    async def _preload_domain_ids(self) -> Dict[str, int]:
+        """
+        Load all domain IDs for the market in one query.
+
+        Returns:
+            Dict mapping domain string to database id
+        """
+        result = await self.session.execute(
+            select(Domain.id, Domain.domain)
+            .where(Domain.market_id == self.market_id)
+        )
+        return {row.domain: row.id for row in result.fetchall()}
+
+    async def _bulk_save_brand_mappings(
+        self,
+        mappings: List[Dict[str, Any]],
+        domain_id_map: Dict[str, int]
+    ) -> int:
+        """
+        Bulk insert brand-domain mappings.
+
+        Args:
+            mappings: List of mapping dicts with domain, brand_name, domain_type, etc.
+            domain_id_map: Pre-loaded domain -> id mapping
+
+        Returns:
+            Number of mappings inserted
+        """
+        if not mappings:
+            return 0
+
+        await self._load_market_config()
+        brand_type = self._get_brand_type()
+        default_type = brand_type.display_name if brand_type else "Brand"
+
+        # Prepare data with domain_ids
+        insert_data = []
+        for m in mappings:
+            domain_id = domain_id_map.get(m["domain"])
+            if not domain_id:
+                continue
+            insert_data.append({
+                "market_id": self.market_id,
+                "brand_name": m.get("brand_name", "N/A"),
+                "domain_id": domain_id,
+                "is_primary": m.get("is_primary", False),
+                "domain_type": m.get("domain_type", default_type),
+                "confidence": m.get("confidence", 0.5),
+            })
+
+        if not insert_data:
+            return 0
+
+        result = await self.session.execute(
+            text("""
+                INSERT INTO brand_domains (market_id, brand_name, domain_id, is_primary, domain_type, confidence, created_at)
+                SELECT
+                    d.market_id,
+                    d.brand_name,
+                    CAST(d.domain_id AS INTEGER),
+                    CAST(d.is_primary AS BOOLEAN),
+                    d.domain_type,
+                    CAST(d.confidence AS FLOAT),
+                    NOW()
+                FROM jsonb_to_recordset(CAST(:data AS jsonb)) AS d(
+                    market_id TEXT,
+                    brand_name TEXT,
+                    domain_id INTEGER,
+                    is_primary BOOLEAN,
+                    domain_type TEXT,
+                    confidence FLOAT
+                )
+                ON CONFLICT (market_id, brand_name, domain_id) DO UPDATE
+                    SET domain_type = EXCLUDED.domain_type,
+                        confidence = EXCLUDED.confidence
+            """),
+            {"data": orjson.dumps(insert_data).decode()}
+        )
+
+        await self.session.commit()
+        return len(insert_data)
+
+    # =========================================================================
+    # BRAND ANALYSIS METHODS
+    # =========================================================================
+
     async def get_all_brands(self) -> List[Tuple[str, int, int]]:
         """
         Get all unique brand values from keyword tags for this market.
@@ -87,7 +188,9 @@ class BrandMapperService:
         await self._load_market_config()
 
         # Get the brand category IDs for this market
-        brand_category_names = json.loads(self._market_config.brand_category_names or '["brand"]')
+        # Config may use display names, but database uses normalized names
+        raw_brand_category_names = json.loads(self._market_config.brand_category_names or '["brand"]')
+        brand_category_names = [normalize_category_name(n) for n in raw_brand_category_names]
 
         result = await self.session.execute(
             select(Category).where(
@@ -98,7 +201,7 @@ class BrandMapperService:
         brand_categories = list(result.scalars().all())
 
         if not brand_categories:
-            logger.warning(f"No brand categories found for market {self.market_id}")
+            logger.warning(f"No brand categories found for market {self.market_id} (looking for: {brand_category_names})")
             return []
 
         brand_category_ids = [c.id for c in brand_categories]
@@ -140,8 +243,9 @@ class BrandMapperService:
         """
         await self._load_market_config()
 
-        # Get brand category IDs
-        brand_category_names = json.loads(self._market_config.brand_category_names or '["brand"]')
+        # Get brand category IDs (normalize names to match database format)
+        raw_brand_category_names = json.loads(self._market_config.brand_category_names or '["brand"]')
+        brand_category_names = [normalize_category_name(n) for n in raw_brand_category_names]
 
         brand_category_result = await self.session.execute(
             select(Category).where(
@@ -335,12 +439,12 @@ class BrandMapperService:
         """
         await self._load_market_config()
 
-        # Prepare domain info
+        # Prepare domain info (increased limit to 100 for larger batches)
         domain_info = "\n".join(
             [
                 f"{i+1}. {d['domain']} (visibility: {d.get('visibility', 0)}, "
                 f"{d.get('keyword_count', 0)} keywords)"
-                for i, d in enumerate(domains[:50])  # Limit to 50 for prompt size
+                for i, d in enumerate(domains[:100])
             ]
         )
 
@@ -432,18 +536,39 @@ Respond only with valid JSON, no other text."""
         try:
             response = self.client.messages.create(
                 model="claude-sonnet-4-20250514",
-                max_tokens=4096,
+                max_tokens=8192,  # Increased for larger batches
                 messages=[{"role": "user", "content": prompt}],
             )
 
             response_text = response.content[0].text.strip()
 
-            # Handle markdown code blocks
-            if response_text.startswith("```"):
-                lines = response_text.split("\n")
-                response_text = "\n".join(lines[1:-1])
+            # Extract JSON from response (handle markdown code blocks)
+            import re
 
-            result = json.loads(response_text)
+            # Try to find JSON in markdown code block first
+            code_block_match = re.search(r'```(?:json)?\s*\n?([\s\S]*?)\n?```', response_text)
+            if code_block_match:
+                response_text = code_block_match.group(1).strip()
+
+            # If no code block, try to find JSON object directly
+            if not response_text.startswith('{'):
+                json_match = re.search(r'\{[\s\S]*\}', response_text)
+                if json_match:
+                    response_text = json_match.group(0)
+
+            # Try to parse JSON
+            try:
+                result = json.loads(response_text)
+            except json.JSONDecodeError:
+                # Try to fix common issues: trailing commas, incomplete arrays
+                # Remove trailing commas before ] or }
+                fixed_text = re.sub(r',\s*([}\]])', r'\1', response_text)
+                # Try to close unclosed arrays/objects
+                open_braces = fixed_text.count('{') - fixed_text.count('}')
+                open_brackets = fixed_text.count('[') - fixed_text.count(']')
+                fixed_text += ']' * open_brackets + '}' * open_braces
+                result = json.loads(fixed_text)
+
             mappings = result.get("mappings", [])
 
             # Filter out N/A brand names for non-Brand types
@@ -598,6 +723,9 @@ async def run_comprehensive_mapping(
     2. Heuristic matching (brand name in domain)
     3. AI mapping for top 1000 unmapped domains by visibility
 
+    Uses bulk operations for improved performance.
+    Each phase uses separate DB connections to avoid timeout issues.
+
     Args:
         market_id: Market ID to run mapping for
         manual_mappings: Optional dict of manual domain mappings
@@ -615,78 +743,133 @@ async def run_comprehensive_mapping(
         "errors": [],
     }
 
+    # Pre-load data we'll need throughout (quick DB operation)
     async with get_db_context() as session:
         service = BrandMapperService(session, market_id=market_id)
 
-        # Phase 1: Apply manual mappings
-        if manual_mappings:
-            logger.info(f"Phase 1: Applying {len(manual_mappings)} manual mappings...")
-            stats["manual_mappings"] = await service.apply_manual_mappings(manual_mappings)
+        logger.info("Pre-loading domain IDs for bulk operations...")
+        domain_id_map = await service._preload_domain_ids()
+        logger.info(f"Loaded {len(domain_id_map)} domain IDs")
 
-        # Phase 2: Heuristic matching for all brands
-        logger.info("Phase 2: Heuristic matching (brand name in domain)...")
+    # Phase 1: Apply manual mappings (separate DB context)
+    if manual_mappings:
+        async with get_db_context() as session:
+            service = BrandMapperService(session, market_id=market_id)
+            logger.info(f"Phase 1: Applying {len(manual_mappings)} manual mappings...")
+            manual_list = [
+                {
+                    "domain": domain_str,
+                    "brand_name": info.get("brand_name", "N/A"),
+                    "domain_type": info.get("domain_type", "Brand"),
+                    "is_primary": info.get("is_primary", False),
+                    "confidence": info.get("confidence", 1.0),
+                }
+                for domain_str, info in manual_mappings.items()
+            ]
+            stats["manual_mappings"] = await service._bulk_save_brand_mappings(manual_list, domain_id_map)
+
+    # Phase 2: Heuristic matching (separate DB context)
+    logger.info("Phase 2: Heuristic matching (brand name in domain)...")
+    async with get_db_context() as session:
+        service = BrandMapperService(session, market_id=market_id)
         brands = await service.get_all_brands()
 
+        all_heuristic_mappings = []
         for brand_name, keyword_count, total_volume in brands:
             try:
-                # Skip brands with very few keywords
                 if keyword_count < 3:
                     continue
 
-                # Get domains for this brand
                 domains = await service.get_domains_for_brand_keywords(brand_name, limit=100)
-
-                # Apply heuristic matching
                 heuristic_mappings = await service._heuristic_matching(brand_name, domains)
 
                 if heuristic_mappings:
-                    saved = await service.save_brand_mapping(heuristic_mappings)
-                    stats["heuristic_mappings"] += saved
+                    all_heuristic_mappings.extend(heuristic_mappings)
 
             except Exception as e:
                 error_msg = f"Error in heuristic matching for '{brand_name}': {str(e)}"
                 logger.error(error_msg)
                 stats["errors"].append(error_msg)
 
-        logger.info(f"Heuristic matching complete: {stats['heuristic_mappings']} mappings created")
+        if all_heuristic_mappings:
+            stats["heuristic_mappings"] = await service._bulk_save_brand_mappings(
+                all_heuristic_mappings, domain_id_map
+            )
 
-        # Phase 3: AI mapping for top 1000 unmapped domains by visibility
-        if use_ai and service.client:
+    logger.info(f"Heuristic matching complete: {stats['heuristic_mappings']} mappings created")
+
+    # Phase 3: AI mapping (separate DB contexts for data fetch and inserts)
+    if use_ai:
+        # Check for API key
+        client = None
+        if settings.anthropic_api_key:
+            client = Anthropic(api_key=settings.anthropic_api_key)
+
+        if client:
             logger.info("Phase 3: AI mapping for top 1000 unmapped domains by visibility...")
 
-            # Calculate visibility for all domains
-            top_domains = await service.calculate_domain_visibility(limit=2000)
+            # Fetch data needed for AI (quick DB operation)
+            async with get_db_context() as session:
+                service = BrandMapperService(session, market_id=market_id)
+                service.client = client
 
-            # Filter unmapped domains
-            unmapped = await service.get_unmapped_domains(top_domains)
+                top_domains = await service.calculate_domain_visibility(limit=2000)
+                unmapped = await service.get_unmapped_domains(top_domains)
+                unmapped_top = unmapped[:1000]
+                brand_names = [b[0] for b in brands]
 
-            # Take top 1000 by visibility
-            unmapped_top = unmapped[:1000]
             logger.info(f"Processing {len(unmapped_top)} unmapped domains with AI...")
 
-            # Get brand names for context
-            brand_names = [b[0] for b in brands]
-
-            # Process in batches of 50
+            # AI processing (NO database connection held open)
             batch_size = 50
+            all_ai_mappings = []
+
+            # Create a temporary service just for AI calls (no session needed)
+            temp_service = BrandMapperService.__new__(BrandMapperService)
+            temp_service.market_id = market_id
+            temp_service.client = client
+            temp_service._market_config = None
+            temp_service._domain_types = None
+
+            # Load market config for AI prompt generation
+            async with get_db_context() as session:
+                temp_service.session = session
+                await temp_service._load_market_config()
+
             for i in range(0, len(unmapped_top), batch_size):
                 batch = unmapped_top[i:i+batch_size]
 
                 try:
-                    ai_mappings = await service._call_claude_for_mapping(batch, brand_names)
+                    ai_mappings = await temp_service._call_claude_for_mapping(batch, brand_names)
 
                     if ai_mappings:
-                        saved = await service.save_brand_mapping(ai_mappings)
-                        stats["ai_mappings"] += saved
+                        all_ai_mappings.extend(ai_mappings)
 
-                    logger.info(f"Processed batch {i//batch_size + 1}/{(len(unmapped_top)-1)//batch_size + 1}")
+                    logger.info(f"Processed AI batch {i//batch_size + 1}/{(len(unmapped_top)-1)//batch_size + 1}")
 
                 except Exception as e:
                     error_msg = f"Error in AI mapping batch {i//batch_size + 1}: {str(e)}"
                     logger.error(error_msg)
                     stats["errors"].append(error_msg)
 
-        elif use_ai:
+            # Insert AI mappings in batches (fresh DB connections)
+            if all_ai_mappings:
+                insert_batch_size = 200
+                total_inserted = 0
+                for i in range(0, len(all_ai_mappings), insert_batch_size):
+                    batch = all_ai_mappings[i:i+insert_batch_size]
+                    try:
+                        async with get_db_context() as session:
+                            service = BrandMapperService(session, market_id=market_id)
+                            inserted = await service._bulk_save_brand_mappings(batch, domain_id_map)
+                            total_inserted += inserted
+                            logger.info(f"Inserted AI mapping batch {i//insert_batch_size + 1}: {inserted} mappings")
+                    except Exception as e:
+                        logger.error(f"Error inserting AI batch {i//insert_batch_size + 1}: {e}")
+                        stats["errors"].append(f"AI insert batch {i//insert_batch_size + 1}: {str(e)}")
+                stats["ai_mappings"] = total_inserted
+
+        else:
             logger.warning("AI mapping requested but no API key available")
 
     stats["total_mappings"] = (

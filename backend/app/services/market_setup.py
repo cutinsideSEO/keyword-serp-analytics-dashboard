@@ -19,6 +19,16 @@ from app.models import Market, MarketDomainType
 logger = logging.getLogger(__name__)
 
 
+def normalize_category_name(name: str) -> str:
+    """
+    Normalize category name to match database format.
+
+    Config files may use display names like "Insurance Company - Canonical"
+    but categories are stored with normalized names like "insurance_company___canonical".
+    """
+    return name.lower().strip().replace(" ", "_").replace("-", "_")
+
+
 # =============================================================================
 # COLOR PRESETS
 # =============================================================================
@@ -200,6 +210,12 @@ async def ensure_market_exists(
     """
     market_config = config.get("market", {})
 
+    # Normalize brand category names to match database category format
+    # Config may use display names like "Insurance Company - Canonical"
+    # but categories are stored as "insurance_company___canonical"
+    raw_brand_categories = market_config.get("brand_category_names", ["Brand"])
+    normalized_brand_categories = [normalize_category_name(n) for n in raw_brand_categories]
+
     # Prepare market data
     market_data = {
         "id": market_id,
@@ -207,9 +223,7 @@ async def ensure_market_exists(
         "industry_context": market_config.get("industry_context", ""),
         "language": market_config.get("language", "en"),
         "text_direction": market_config.get("text_direction", "ltr"),
-        "brand_category_names": json.dumps(
-            market_config.get("brand_category_names", ["Brand"])
-        ),
+        "brand_category_names": json.dumps(normalized_brand_categories),
         "is_active": True,
     }
 

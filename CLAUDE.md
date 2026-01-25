@@ -1,35 +1,25 @@
-# Keyword & SERP Analytics Dashboard
+# CLAUDE.md
 
-A comprehensive analytics platform for keyword rankings and SERP data with AI-powered brand-domain classification, multi-market support, and multi-dimensional performance insights.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Quick Start
 
 ```bash
-# 1. Backend Setup
+# Backend (from project root)
 cd backend
 python -m venv venv
 venv\Scripts\activate          # Windows
 pip install -r requirements.txt
 # Edit backend/.env with Supabase credentials
-
-# 2. Import Data (specify market)
-cd scripts
-python import_data.py --market insurance_il
-python map_brands.py --market insurance_il
-
-# 3. Start Backend (from backend directory)
-cd backend
 venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
 
-# 4. Start Frontend (new terminal)
+# Frontend (new terminal, from project root)
 cd frontend
 npm install
 npm run dev
 ```
 
 **Dashboard**: http://localhost:5173 | **API Docs**: http://localhost:8000/docs
-
----
 
 ## Architecture
 
@@ -39,229 +29,203 @@ npm run dev
 │  React + Vite   │◀────│    FastAPI      │◀────│   PostgreSQL     │
 │  Tremor + TS    │     │    Python 3.11  │     │  Multi-market    │
 └─────────────────┘     └─────────────────┘     └──────────────────┘
-                               │
-                               ▼
-                      ┌──────────────────┐
-                      │   Claude API     │
-                      │  Domain Mapping  │
-                      └──────────────────┘
+         │                      │
+   TypeScript types      Pydantic schemas        RPC functions
+   frontend/src/types    backend/app/schemas     Supabase Dashboard
 ```
-
-## Tech Stack
 
 | Layer    | Technology        | Purpose                          |
 |----------|-------------------|----------------------------------|
 | Database | Supabase/Postgres | Cloud database with multi-market |
-| ORM      | SQLAlchemy 2.x    | Async database operations        |
 | Backend  | FastAPI           | REST API with OpenAPI docs       |
 | Frontend | React 18 + TS     | UI framework                     |
 | UI       | Tremor 3.x        | Dashboard components             |
 | AI       | Claude API        | Domain classification            |
 
----
+## Data Request Flow (Critical Pattern)
+
+All dashboard data flows through Supabase RPC functions for serverless compatibility:
+
+```
+Frontend API Call → FastAPI Router → Service Method → Supabase RPC → PostgreSQL
+     ↓                    ↓              ↓                ↓
+  TypeScript type    Pydantic schema  .rpc() call    plpgsql function
+```
+
+### Key Files by Layer:
+
+| Layer | File | Purpose |
+|-------|------|---------|
+| Frontend Types | `frontend/src/types/index.ts` | TypeScript interfaces for API responses |
+| Frontend API | `frontend/src/api/endpoints.ts` | Axios calls to backend |
+| Backend Router | `backend/app/routers/dashboard.py` | FastAPI endpoints |
+| Backend Service | `backend/app/services/supabase_analytics.py` | Brand protection RPC calls |
+| Backend Service | `backend/app/services/supabase_market_analytics.py` | Market overview RPC calls |
+| Backend Schemas | `backend/app/schemas.py` | Pydantic response models |
+
+### Adding a New Dashboard Endpoint
+
+1. **Create RPC function** in Supabase SQL Editor (or via `mcp__supabase__apply_migration`):
+```sql
+CREATE OR REPLACE FUNCTION get_my_data(p_market_id TEXT, p_brand_name TEXT)
+RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+    RETURN (SELECT json_build_object('field', value) FROM ...);
+END;
+$$;
+```
+
+2. **Add Pydantic schema** in `backend/app/schemas.py`
+3. **Add service method** in appropriate service file
+4. **Add router endpoint** in `backend/app/routers/dashboard.py`
+5. **Add TypeScript type** in `frontend/src/types/index.ts`
+6. **Add API function** in `frontend/src/api/endpoints.ts`
+
+### RPC Response Handling Pattern
+
+Always handle both list and dict responses from RPC (Supabase can return either):
+
+```python
+if result.data:
+    data = result.data
+    # Handle both list and dict responses from RPC
+    if isinstance(data, list) and len(data) > 0:
+        data = data[0]
+    # Now process data as dict
+```
+
+## Common Mistakes to Avoid
+
+### 1. Frontend/Backend Type Mismatch (CRITICAL)
+**Problem**: Backend returns different field names or structure than frontend expects.
+**Example**: Backend `DomainWinnerItem` returned `win_count` but frontend `DomainVisibilityItem` expected `visibility_score`.
+**Solution**: Always verify TypeScript types match Pydantic schemas. Frontend types are in `frontend/src/types/index.ts`, backend schemas in `backend/app/schemas.py`.
+
+### 2. Missing Endpoints for Drill-Down Views
+**Problem**: Frontend calls breakdown/drill-down endpoint that doesn't exist (404 errors).
+**Example**: Frontend called `/dashboard/brand-protection/categories/{category}/breakdown` which wasn't implemented.
+**Solution**: When adding a list/summary endpoint, always implement the corresponding breakdown endpoint if the frontend has expandable rows.
+
+### 3. RPC Function Timeouts
+**Problem**: Complex correlated subqueries in RPC functions timeout on Vercel (10s limit).
+**Example**: `get_share_of_search` had expensive subqueries calculating per-brand stats.
+**Solution**: Use separate SELECT statements and aggregate with `json_agg`/`json_object_agg` instead of correlated subqueries.
+
+### 4. Stub Methods Returning Empty Data
+**Problem**: Service methods return `[]` as stubs, causing "0 items" in dashboard.
+**Solution**: Always implement RPC call when adding service method; don't leave stubs.
+
+### 5. Missing Fields in Dashboard Aggregations
+**Problem**: Dashboard endpoint doesn't call all required service methods.
+**Example**: `get_brand_protection_dashboard` wasn't calling `get_losses_by_category`.
+**Solution**: Check Pydantic schema for all required fields and fetch each.
 
 ## Multi-Market System
 
-The application supports multiple isolated markets (e.g., insurance, bicycles). Each market has:
-- Its own data (keywords, domains, brands)
-- Custom domain types with unique styling
-- Configurable brand categories
+The application supports multiple isolated markets (e.g., insurance, bicycles). Each market has its own data (keywords, domains, brands), custom domain types with unique styling, and configurable brand categories.
+
+**Key Principle**: Always filter by `market_id`, never mix market data.
 
 ### Adding a New Market
 
-Markets are defined via `config.json` files in each market folder. The import script automatically creates/updates the market in Supabase.
-
-**1. Create config template:**
 ```bash
 cd scripts
-python import_data.py --create-config --market electronics_us
+python import_data.py --create-config --market new_market_id  # Creates config template
+# Edit source_data/new_market_id/config.json
+# Add keywords.csv and serp.json
+python import_data.py --market new_market_id
+python map_brands.py --market new_market_id  # AI domain mapping
 ```
 
-**2. Edit `source_data/electronics_us/config.json`:**
-```json
-{
-  "market": {
-    "name": "US Electronics Market",
-    "industry_context": "Consumer electronics retail",
-    "language": "en",
-    "text_direction": "ltr",
-    "brand_category_names": ["Brand - Canonical"]
-  },
-  "domain_types": [
-    {
-      "type_id": "brand",
-      "display_name": "Brand",
-      "ai_description": "Official brand website selling their own products",
-      "is_brand_type": true,
-      "color": "blue",
-      "icon": "Building2",
-      "examples": ["apple.com", "samsung.com"]
-    },
-    {
-      "type_id": "retailer",
-      "display_name": "Retailer",
-      "ai_description": "Multi-brand retailers",
-      "is_brand_type": false,
-      "color": "purple",
-      "icon": "ShoppingCart",
-      "examples": ["amazon.com", "bestbuy.com"]
-    }
-  ]
-}
-```
+### Large Dataset Import Considerations
 
-**3. Add data files and import:**
-```bash
-# Add keywords.csv and serp.json to source_data/electronics_us/
-python import_data.py --market electronics_us
-python map_brands.py --market electronics_us
-```
+For markets with large SERP files (>100MB), the import uses:
+- **Batch size of 2,000** for SERP results (reduced from 10,000 to avoid Supabase statement timeouts)
+- **Retry logic with exponential backoff** - if a batch times out, it automatically retries with smaller chunks
+- **Subquery-based deletions** - `clear_market_data()` uses SQL subqueries instead of `IN` clauses to avoid PostgreSQL's 65,535 parameter limit
 
-**Color Presets** (just specify `"color": "blue"` - styling is auto-generated):
-| Color | Use Case |
-|-------|----------|
-| blue | Brand (primary) |
-| purple | Comparison/Aggregator |
-| orange | Reseller |
-| amber | UGC |
-| emerald | 3rd Party |
-| teal, rose, indigo, cyan, gray | Additional options |
+Example import times:
+| Market | SERP Size | Keywords | Import Time |
+|--------|-----------|----------|-------------|
+| insurance_il | 127 MB | 12,500 | ~15 minutes |
+| bicycle_us | 778 MB | 92,344 | ~2 hours |
 
-### Market Selection
-- Users select markets via the sidebar dropdown
-- Selection persists in localStorage
+### Market Selection Flow
+- Users select markets via sidebar dropdown (persists in localStorage)
 - All API requests include `market_id` automatically
 - Frontend uses `X-Market-ID` header + query param
 
----
+## Database Schema (Core Tables)
 
-## Project Structure
+All tables have `market_id` for multi-tenant isolation:
+- `markets` - Market definitions
+- `market_domain_types` - Domain types per market (brand, reseller, UGC, 3rd party)
+- `keywords` - Keyword + volume + modifier_group
+- `domains` - Unique domains from SERP
+- `serp_results` - Rankings per keyword
+- `brand_domains` - Brand-domain mapping with domain_type
 
+## Vercel Deployment
+
+**Live**: https://keyword-serp-dashboard.vercel.app
+
+The deployment uses:
+- `api/index.py` - Vercel serverless entry point (native ASGI support for FastAPI)
+- `vercel.json` - Routes `/api/*` to Python, everything else to React frontend
+- `pyproject.toml` - Python dependencies for Vercel
+
+**Important**: The `api/index.py` creates the FastAPI app WITHOUT the lifespan handler (Vercel serverless doesn't support startup/shutdown hooks). For local development, use `backend/app/main.py` which has the full lifespan.
+
+### Environment Variables (Vercel)
+Set via `vercel env add` (use `printf` not `echo` to avoid trailing newlines):
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `DEFAULT_MARKET_ID`
+- `CORS_ALLOW_ALL=true`
+
+### Data Updates
+Import scripts run locally and connect directly to Supabase:
+```bash
+python scripts/import_data.py --market insurance_il
 ```
-NewDashboard/
-├── backend/
-│   ├── app/
-│   │   ├── main.py              # FastAPI app + middleware
-│   │   ├── config.py            # Supabase settings
-│   │   ├── database.py          # PostgreSQL connection
-│   │   ├── models.py            # ORM models with market_id
-│   │   ├── schemas.py           # Pydantic schemas
-│   │   ├── middleware/
-│   │   │   └── market_context.py # Market context middleware
-│   │   ├── routers/
-│   │   │   ├── markets.py       # Market CRUD + config
-│   │   │   ├── brands.py        # Brand CRUD
-│   │   │   ├── keywords.py      # Keyword search
-│   │   │   └── dashboard.py     # Analytics endpoints
-│   │   └── services/
-│   │       ├── analytics.py     # Brand protection analytics
-│   │       ├── market_analytics.py  # Market-wide analytics
-│   │       ├── market_setup.py  # Config-based market setup
-│   │       └── data_import.py   # Data import service
-│   └── .env                     # Supabase credentials
-│
-├── frontend/
-│   └── src/
-│       ├── pages/
-│       │   ├── BrandProtection.tsx
-│       │   ├── MarketOverview.tsx
-│       │   ├── CategoryOpportunities.tsx
-│       │   └── Config.tsx
-│       ├── components/
-│       │   ├── layout/Sidebar.tsx    # Market selector
-│       │   └── common/MarketSelector.tsx
-│       ├── contexts/
-│       │   └── MarketConfigContext.tsx  # Multi-market context
-│       └── api/
-│           └── client.ts        # Axios with market_id injection
-│
-└── scripts/
-    ├── import_data.py           # CSV/JSON import (--market required)
-    └── map_brands.py            # AI brand-domain mapping
+Data appears immediately in the live app (no redeploy needed).
+
+## Testing Endpoints
+
+After adding/modifying endpoints, test with curl:
+```bash
+# Local
+curl "http://localhost:8000/api/dashboard/brand-protection?brand=הראל&market_id=insurance_il"
+
+# Production
+curl "https://keyword-serp-dashboard.vercel.app/api/dashboard/market-overview?market_id=insurance_il"
 ```
 
----
+Check Supabase logs for RPC errors:
+```bash
+# Via MCP
+mcp__supabase__get_logs with service="postgres"
+```
 
-## Database Schema
+## Frontend: useMarketConfig() Hook
 
-### Core Tables (all have market_id)
+```tsx
+const { currentMarketId, availableMarkets, setCurrentMarket, getStyles, getIcon } = useMarketConfig();
 
-| Table | Purpose |
-|-------|---------|
-| `markets` | Market definitions |
-| `market_domain_types` | Domain types per market |
-| `keywords` | Keyword + volume + modifier_group |
-| `categories` | Tag categories from CSV columns |
-| `keyword_tags` | Keyword - category values (many-to-many) |
-| `domains` | Unique domains from SERP |
-| `serp_results` | Rankings per keyword |
-| `brand_domains` | Brand - domain mapping with domain_type |
-
-### Domain Types
-Configured per market in `market_domain_types` table:
-- **Brand**: Official brand website
-- **Reseller**: Multi-brand aggregators
-- **UGC**: User-generated content
-- **3rd Party**: Review sites, affiliates, news
-
----
-
-## API Endpoints
-
-### Markets
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/markets` | List all active markets |
-| GET | `/api/markets/{id}/config` | Get market config + domain types |
-
-### Brands
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/brands` | List brands (filtered by market) |
-| GET | `/api/brands/{name}` | Brand details + domains |
-
-### Brand Protection
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/dashboard/brand-protection?brand=X` | Full dashboard |
-| GET | `/api/dashboard/brand-protection/kpis?brand=X` | KPIs only |
-| GET | `/api/dashboard/brand-protection/wins?brand=X` | Winning keywords |
-| GET | `/api/dashboard/brand-protection/losses?brand=X` | Lost keywords |
-
-### Market Overview
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/dashboard/market-overview` | Full market dashboard |
-| GET | `/api/dashboard/market-overview/share-of-search` | Brand demand |
-
-### Category Opportunities
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/dashboard/category-opportunities?brand=X` | Non-branded |
-| GET | `/api/dashboard/competitor-branded-opportunities?brand=X` | Competitor |
-
----
+// Domain type styling - NEVER hardcode domain types
+const styles = getStyles(competitor.domain_type);
+const Icon = getIcon(competitor.domain_type);
+```
 
 ## Environment Variables
 
 ### Backend (`backend/.env`)
 ```bash
-# Supabase PostgreSQL connection
-DATABASE_URL=postgresql+asyncpg://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
-
-# Supabase API (optional, for direct API access)
 SUPABASE_URL=https://[PROJECT_REF].supabase.co
 SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_KEY=eyJ...
-
-# Default market
 DEFAULT_MARKET_ID=insurance_il
-
-# CORS
 CORS_ORIGINS=["http://localhost:5173"]
-
-# Claude API (for brand-domain mapping)
-ANTHROPIC_API_KEY=sk-ant-api03-xxx
+ANTHROPIC_API_KEY=sk-ant-api03-xxx  # For brand-domain mapping
 ```
 
 ### Frontend (`frontend/.env`)
@@ -269,119 +233,9 @@ ANTHROPIC_API_KEY=sk-ant-api03-xxx
 VITE_API_BASE_URL=http://localhost:8000/api
 ```
 
----
-
-## Development
-
-### Restart Commands
-```bash
-# Backend
-cd backend && ./venv/Scripts/python.exe -m uvicorn app.main:app --reload --port 8000
-
-# Frontend
-cd frontend && npm run dev
-```
-
-### Import Data
-
-Data is organized by market in `source_data/` folders. **config.json is required** for each market:
-```
-source_data/
-├── insurance_il/
-│   ├── config.json       <- REQUIRED: Market + domain type definitions
-│   ├── keywords.csv
-│   ├── serp.json
-│   └── mappings.json     <- Optional: Manual brand-domain mappings
-└── new_market/
-    ├── config.json       <- Must create before first import
-    ├── keywords.csv
-    └── serp.json
-```
-
-Import commands:
-```bash
-cd scripts
-python import_data.py --list                          # List available markets
-python import_data.py --create-config --market new    # Create config template
-python import_data.py --market insurance_il           # Import one market
-python import_data.py --all                           # Import all markets
-python map_brands.py --market insurance_il            # AI domain mapping
-```
-
-### Frontend: useMarketConfig() hook
-```tsx
-const {
-  currentMarketId,
-  availableMarkets,
-  setCurrentMarket,
-  getStyles,
-  getIcon
-} = useMarketConfig();
-
-// Domain type styling
-const styles = getStyles(competitor.domain_type);
-const Icon = getIcon(competitor.domain_type);
-```
-
-**IMPORTANT**: Never hardcode domain types. Always use the context.
-
----
-
-## Deployment Architecture (Vercel + Supabase)
-
-```
-┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│  Your Computer   │     │     Vercel       │     │    Supabase      │
-│                  │     │                  │     │                  │
-│  source_data/    │     │  Frontend (React)│     │   PostgreSQL     │
-│  ├── market_a/   │     │  Backend (FastAPI│────▶│   Database       │
-│  └── market_b/   │     │    on Vercel)    │     │                  │
-│                  │     │                  │     │  - markets       │
-│  import_data.py ─┼─────┼──────────────────┼────▶│  - keywords      │
-│  (runs locally)  │     │                  │     │  - serp_results  │
-└──────────────────┘     └──────────────────┘     └──────────────────┘
-```
-
-### How It Works
-1. **Vercel** hosts the app (frontend + API)
-2. **Supabase** hosts the database (cloud PostgreSQL)
-3. **Import scripts run locally** on your computer, connecting directly to Supabase
-
-### Data Update Workflow
-1. Place new data files in `source_data/{market_id}/`
-2. Run import script locally (connects to Supabase):
-   ```bash
-   python scripts/import_data.py --market insurance_il
-   ```
-3. Data appears immediately in the live Vercel app
-
-### Why This Works
-- Import scripts use the same `DATABASE_URL` as the deployed app
-- Both your local machine and Vercel connect to the same Supabase database
-- No need to redeploy Vercel when updating data
-
----
-
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| Connection refused | Check Supabase credentials in .env |
-| No markets in dropdown | Verify `markets` table has data |
-| Brand picker empty | Run `import_data.py --market X` |
-| No domain mapping | Run `map_brands.py --market X` |
-| Wrong market data | Check `market_id` filter in queries |
-
----
-
 ## Coding Standards
 
-- **Python**: PEP 8, type hints, async/await, SQLAlchemy ORM
+- **Python**: PEP 8, type hints, async/await
 - **TypeScript**: Strict mode, explicit types, functional components
 - **Git**: Conventional commits (`feat:`, `fix:`, `docs:`)
-- **SQL**: Parameterized queries only, proper indexes
-- **Markets**: Always filter by `market_id`, never mix market data
-
----
-
-**Built with Claude Code**
+- **Markets**: Always filter by `market_id`

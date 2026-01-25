@@ -121,10 +121,10 @@ def find_market_files(market_id: str) -> tuple[Path, Path]:
     csv_path = csv_files[0]
     logger.info(f"Found CSV: {csv_path}")
 
-    # Find JSON file in market folder (exclude config.json)
+    # Find JSON file in market folder (exclude config.json and mappings.json)
     json_files = [
         f for f in market_dir.glob("*.json")
-        if f.name != "config.json" and not f.name.startswith("package")
+        if f.name not in ("config.json", "mappings.json") and not f.name.startswith("package")
     ]
     if not json_files:
         raise FileNotFoundError(f"No SERP JSON file found in {market_dir}")

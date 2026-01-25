@@ -1,0 +1,98 @@
+{
+  "market": {
+    "name": "US Bicycle Market",
+    "industry_context": "Bicycle industry in the US including road bikes, mountain bikes, electric bikes, comfort bikes, bike accessories, bike shops, cycling gear, bike parts, and cycling apparel",
+    "language": "en",
+    "text_direction": "ltr",
+    "brand_category_names": [
+      "brand",
+      "accecories brand",
+      "parts brands",
+      "cycling wear brands"
+    ]
+  },
+  "domain_types": [
+    {
+      "type_id": "brand",
+      "display_name": "Brand",
+      "ai_description": "Official bicycle brand/manufacturer websites selling their own bikes and products directly. These are the bike manufacturers themselves.",
+      "is_brand_type": true,
+      "color": "blue",
+      "icon": "Building2",
+      "examples": [
+        "www.trekbikes.com",
+        "www.specialized.com",
+        "www.giant-bicycles.com",
+        "www.cannondale.com",
+        "www.santacruzbicycles.com",
+        "www.scottbikes.com",
+        "www.bmc-switzerland.com",
+        "www.cervelo.com",
+        "www.pinarello.com",
+        "www.rfranchises.com",
+        "www.radpowerbikes.com",
+        "www.peloton.com"
+      ]
+    },
+    {
+      "type_id": "retailer",
+      "display_name": "Retailer",
+      "ai_description": "Bike shops and retailers selling multiple bicycle brands. Includes online bike retailers, local bike shops, and multi-brand stores.",
+      "is_brand_type": false,
+      "color": "purple",
+      "icon": "ShoppingCart",
+      "examples": [
+        "www.rei.com",
+        "www.bikesonline.com",
+        "www.jensonusa.com",
+        "www.performancebike.com",
+        "www.competitivecyclist.com",
+        "www.chainreactioncycles.com",
+        "www.wiggle.com",
+        "www.backcountry.com",
+        "www.dickssportinggoods.com",
+        "www.walmart.com",
+        "www.target.com",
+        "www.amazon.com"
+      ]
+    },
+    {
+      "type_id": "ugc",
+      "display_name": "UGC",
+      "ai_description": "User-generated content platforms including forums, Q&A sites, social media, Reddit, and community discussion sites about cycling",
+      "is_brand_type": false,
+      "color": "amber",
+      "icon": "Users",
+      "examples": [
+        "www.reddit.com",
+        "www.facebook.com",
+        "www.instagram.com",
+        "www.youtube.com",
+        "www.strava.com",
+        "www.quora.com",
+        "www.mtbr.com",
+        "www.bikeforums.net",
+        "www.pinkbike.com"
+      ]
+    },
+    {
+      "type_id": "3rd_party",
+      "display_name": "3rd Party",
+      "ai_description": "Third-party websites including review sites, cycling news, blogs, cycling publications, and informational content not directly selling bikes",
+      "is_brand_type": false,
+      "color": "emerald",
+      "icon": "Newspaper",
+      "examples": [
+        "www.bicycling.com",
+        "www.cyclingnews.com",
+        "www.bikeradar.com",
+        "www.cyclingweekly.com",
+        "road.cc",
+        "www.velonews.com",
+        "www.bikemag.com",
+        "www.singletracks.com",
+        "www.electric-bike.com"
+      ]
+    }
+  ]
+}
