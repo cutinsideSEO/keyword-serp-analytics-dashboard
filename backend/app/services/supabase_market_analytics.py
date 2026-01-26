@@ -163,20 +163,29 @@ class SupabaseMarketAnalyticsService:
 
             if result.data:
                 data = result.data
-                return MarketProtectionKPIs(
-                    total_market_keywords=data.get("total_market_keywords", 0),
-                    total_market_volume=data.get("total_market_volume", 0),
-                    total_brands=data.get("total_brands", 0),
-                    total_branded_keywords=data.get("total_branded_keywords", 0),
-                    total_branded_volume=data.get("total_branded_volume", 0),
-                    total_keywords_winning=data.get("total_keywords_winning", 0),
-                    total_keywords_losing=data.get("total_keywords_losing", 0),
-                    total_volume_winning=data.get("total_volume_winning", 0),
-                    total_volume_losing=data.get("total_volume_losing", 0),
-                    average_win_rate=data.get("average_win_rate", 0),
-                    median_win_rate=data.get("median_win_rate", 0),
-                    average_volume_win_rate=data.get("average_volume_win_rate", 0),
-                )
+                # Handle both list and dict responses from RPC
+                if isinstance(data, list) and len(data) > 0:
+                    data = data[0]
+                # Handle function name wrapper if present
+                if isinstance(data, dict) and "get_market_protection_kpis" in data:
+                    data = data["get_market_protection_kpis"]
+
+                if isinstance(data, dict):
+                    return MarketProtectionKPIs(
+                        total_market_keywords=data.get("total_market_keywords", 0),
+                        total_market_volume=data.get("total_market_volume", 0),
+                        total_brands=data.get("total_brands", 0),
+                        total_branded_keywords=data.get("total_branded_keywords", 0),
+                        total_branded_volume=data.get("total_branded_volume", 0),
+                        total_keywords_winning=data.get("total_keywords_winning", 0),
+                        total_keywords_losing=data.get("total_keywords_losing", 0),
+                        total_volume_winning=data.get("total_volume_winning", 0),
+                        total_volume_losing=data.get("total_volume_losing", 0),
+                        average_win_rate=data.get("average_win_rate", 0),
+                        median_win_rate=data.get("median_win_rate", 0),
+                        average_volume_win_rate=data.get("average_volume_win_rate", 0),
+                    )
+                logger.warning(f"Unexpected data type for market protection KPIs: {type(data)}")
             return MarketProtectionKPIs()
         except Exception as e:
             logger.exception(f"Error getting market protection KPIs: {e}")
@@ -307,6 +316,12 @@ class SupabaseMarketAnalyticsService:
 
             if result.data:
                 data = result.data
+                # Handle both list and dict responses from RPC
+                if isinstance(data, list) and len(data) > 0:
+                    data = data[0]
+                # Handle function name wrapper if present
+                if isinstance(data, dict) and "get_category_breakdown" in data:
+                    data = data["get_category_breakdown"]
                 logger.info(f"Raw data keys: {list(data.keys()) if isinstance(data, dict) else 'not dict'}")
                 # RPC returns JSON directly as dict
                 if isinstance(data, dict):
@@ -397,6 +412,12 @@ class SupabaseMarketAnalyticsService:
 
             if result.data:
                 data = result.data
+                # Handle both list and dict responses from RPC
+                if isinstance(data, list) and len(data) > 0:
+                    data = data[0]
+                # Handle function name wrapper if present
+                if isinstance(data, dict) and "get_modifier_group_breakdown" in data:
+                    data = data["get_modifier_group_breakdown"]
                 # RPC returns JSON directly as dict
                 if isinstance(data, dict):
                     return ModifierGroupBreakdown(
