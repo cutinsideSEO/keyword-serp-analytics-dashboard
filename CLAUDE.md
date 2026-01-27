@@ -105,16 +105,57 @@ Use the helpers in `backend/app/utils/rpc_helpers.py` to normalize responses:
 ```python
 from app.utils.rpc_helpers import unwrap_rpc_single, unwrap_rpc_list
 
-# Single object response
+# Single object response (e.g., KPIs, dashboard aggregations)
 result = client.rpc("get_kpis", {"p_market_id": market_id}).execute()
 data = unwrap_rpc_single(result.data, "get_kpis")
 
-# List response
+# List response (e.g., categories, modifier groups, competitors)
 result = client.rpc("get_items", {"p_market_id": market_id}).execute()
 items = unwrap_rpc_list(result.data)
 ```
 
-Supabase RPC can return data in multiple formats (direct dict, list-wrapped, function-name-wrapped). These helpers handle all cases.
+Supabase RPC can return data in multiple formats (direct dict, list-wrapped, function-name-wrapped). These helpers handle all cases. **Always use them** — manual `if isinstance(data, list)` checks miss the function-name wrapper and cause empty results.
+
+### Async RPC Parallelism
+
+The Supabase Python client is **synchronous**. To parallelize multiple RPC calls (e.g., in market overview which calls 10+ RPCs), wrap calls with `asyncio.to_thread()` and use `asyncio.gather()`:
+
+```python
+import asyncio
+
+async def _rpc(self, function_name: str, params: dict):
+    """Wrap sync Supabase call for true async parallelism."""
+    return await asyncio.to_thread(
+        lambda: self.client.rpc(function_name, params).execute()
+    )
+
+# Run independent RPCs in parallel
+results = await asyncio.gather(
+    self._rpc("get_share_of_search", params),
+    self._rpc("get_protection_kpis", params),
+    self._rpc("get_loss_distribution", params),
+    return_exceptions=True,  # Don't fail all if one fails
+)
+```
+
+This pattern is used in `supabase_market_analytics.py` and reduces the total Market Overview load time from ~20s (sequential) to ~1s (parallel).
+
+### Creating or Modifying RPC Functions (DDL)
+
+The Supabase MCP tool and REST API cannot execute DDL (CREATE FUNCTION, etc.). Use `psycopg2` with the `DATABASE_URL` from `backend/.env`:
+
+```python
+import psycopg2, os
+from dotenv import load_dotenv
+load_dotenv()
+db_url = os.getenv('DATABASE_URL', '').replace('postgresql+psycopg://', 'postgresql://')
+conn = psycopg2.connect(db_url)
+conn.autocommit = True
+cur = conn.cursor()
+cur.execute("CREATE OR REPLACE FUNCTION ...")
+cur.close()
+conn.close()
+```
 
 ## Frontend Architecture
 
@@ -185,6 +226,31 @@ FROM brand_domains
 WHERE market_id = p_market_id AND brand_name = p_brand_name AND is_primary = true;
 ```
 
+### Branded Keyword Identification: Use `brand_category_names`
+Each market stores its brand category names in `markets.brand_category_names` (a JSON array). For example, `bicycle_us` uses `["brand"]`, while `insurance_il` uses `["insurance_company___canonical"]`. **Never hardcode `name = 'brand'`** — always look up from the markets table:
+
+```sql
+-- CORRECT: dynamic brand category lookup (works for all markets)
+SELECT ARRAY_AGG(c.id) INTO v_brand_category_ids
+FROM categories c
+JOIN markets m ON c.market_id = m.id
+WHERE m.id = p_market_id
+  AND c.name = ANY(
+      SELECT json_array_elements_text(m.brand_category_names::json)
+  );
+
+-- Fallback for markets without brand_category_names configured
+IF v_brand_category_ids IS NULL THEN
+    v_brand_category_ids := ARRAY(
+        SELECT id FROM categories
+        WHERE market_id = p_market_id AND name = 'brand'
+    );
+END IF;
+
+-- WRONG: hardcoded, only works for bicycle_us
+WHERE c.name = 'brand'
+```
+
 ### Only Compute What the Frontend Renders
 RPC functions should not return fields that no frontend component displays. Before adding a field to an RPC, verify a component actually renders it. Summary RPCs should not compute data that only the breakdown/detail RPC needs — the detail drawer calls its own separate RPC.
 
@@ -193,10 +259,10 @@ Each market has its own domain types (e.g., bicycle_us uses "Brand", "Retailer",
 
 ### Performance: Large Market Queries
 For markets with 1M+ SERP results (e.g., bicycle_us has 1.6M rows):
-- Use `SET LOCAL enable_nestloop = off;` inside RPC functions that join `serp_results` to small tables like `brand_domains` — forces hash join instead of nested loop
-- Use partial covering indexes for selective filters: `CREATE INDEX ON serp_results (domain_id, keyword_id, rank_group) WHERE rank_group <= 3`
-- Avoid array-based `ANY()` filters on large result sets — use direct JOINs instead
-- Vercel serverless has a 10-second timeout; test RPC performance with `EXPLAIN ANALYZE` against the largest market
+- Use covering indexes for frequently joined columns: `CREATE INDEX ON serp_results (domain_id, keyword_id, rank_absolute)` enables index-only scans
+- Use direct JOINs to `brand_domains` instead of array-based `ANY()` filters on large result sets
+- Use window functions (`ROW_NUMBER() OVER (PARTITION BY ...)`) instead of N correlated subqueries
+- Vercel serverless has a 10-second timeout; test RPC performance against the largest market
 
 ## Common Mistakes to Avoid
 
@@ -223,6 +289,14 @@ For markets with 1M+ SERP results (e.g., bicycle_us has 1.6M rows):
 ### 6. Modifying RPC Functions Without Updating All Three Layers
 **Problem**: Changing an RPC's return shape without updating the Pydantic schema and TypeScript type (or vice versa).
 **Solution**: Any RPC change must be reflected in all three: (1) the SQL function, (2) `backend/app/schemas.py`, (3) `frontend/src/types/index.ts`. Also update the backend service mapping in the appropriate service file.
+
+### 7. Hardcoding Brand Category Name
+**Problem**: RPC uses `WHERE c.name = 'brand'` to find branded keywords, but this only works for `bicycle_us`. Other markets use different brand category names (e.g., `insurance_company___canonical`).
+**Solution**: Look up `brand_category_names` from the `markets` table. See "Branded Keyword Identification" in RPC Design Rules.
+
+### 8. Manual RPC Unwrapping Instead of Helpers
+**Problem**: Using manual `if isinstance(data, list): data = data[0]` to unwrap RPC responses misses the function-name wrapper (`{"function_name": {...}}`), causing `data.get("field")` to return `None`.
+**Solution**: Always use `unwrap_rpc_single(result.data, "function_name")` or `unwrap_rpc_list(result.data)` from `backend/app/utils/rpc_helpers.py`.
 
 ## Multi-Market System
 

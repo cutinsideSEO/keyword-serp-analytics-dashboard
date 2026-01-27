@@ -5,7 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { Grid, Col } from '@tremor/react';
-import { Shield, Layers, Tag, TrendingDown } from 'lucide-react';
+import { Shield, Layers, Tag } from 'lucide-react';
 import { BrandPicker } from '../components/common/BrandPicker';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorDisplay } from '../components/common/ErrorBoundary';
@@ -92,27 +92,37 @@ export function BrandProtection() {
       ),
     },
     {
-      key: 'loss_count',
-      header: 'Keywords Lost',
+      key: 'win_rate',
+      header: 'Win Rate',
       align: 'right' as const,
       render: (item: CategoryLossStats) => (
-        <span className="font-medium text-rose-600">{item.loss_count}</span>
+        <span
+          className={`font-medium ${
+            item.win_rate >= 80
+              ? 'text-emerald-600'
+              : item.win_rate >= 50
+              ? 'text-amber-600'
+              : 'text-rose-600'
+          }`}
+        >
+          {item.win_rate.toFixed(0)}%
+        </span>
       ),
     },
     {
-      key: 'loss_volume',
+      key: 'keywords_losing',
+      header: 'Lost',
+      align: 'right' as const,
+      render: (item: CategoryLossStats) => (
+        <span className="text-rose-600">{item.keywords_losing}</span>
+      ),
+    },
+    {
+      key: 'volume_losing',
       header: 'Volume Lost',
       align: 'right' as const,
       render: (item: CategoryLossStats) => (
-        <span className="text-rose-600">{formatVolume(item.loss_volume)}</span>
-      ),
-    },
-    {
-      key: 'percentage_of_losses',
-      header: '% of Losses',
-      align: 'right' as const,
-      render: (item: CategoryLossStats) => (
-        <span className="text-gray-600">{item.percentage_of_losses.toFixed(1)}%</span>
+        <span className="text-rose-600">{formatVolume(item.volume_losing)}</span>
       ),
     },
   ];

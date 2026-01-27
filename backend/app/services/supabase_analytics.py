@@ -226,18 +226,18 @@ class SupabaseAnalyticsService:
         self, brand_name: str, limit: int = 20
     ) -> List[CategoryLossStats]:
         """
-        Get category breakdown of brand losses.
+        Get category breakdown of brand keyword stats (wins, losses, win rate).
 
         Args:
             brand_name: Brand to analyze
             limit: Maximum categories to return
 
         Returns:
-            List of category loss statistics
+            List of category statistics with win/loss data
         """
         try:
             result = self.client.rpc(
-                "get_losses_by_category",
+                "get_category_stats",
                 {
                     "p_market_id": self.market_id,
                     "p_brand_name": brand_name,
@@ -250,14 +250,18 @@ class SupabaseAnalyticsService:
                 CategoryLossStats(
                     category=item.get("category_name", ""),
                     display_name=item.get("display_name", ""),
-                    loss_count=item.get("total_keywords", 0),
-                    loss_volume=item.get("total_volume", 0),
-                    example_keywords=item.get("top_values", []) or [],
+                    total_keywords=item.get("total_keywords", 0),
+                    total_volume=item.get("total_volume", 0),
+                    keywords_winning=item.get("keywords_winning", 0),
+                    keywords_losing=item.get("keywords_losing", 0),
+                    volume_winning=item.get("volume_winning", 0),
+                    volume_losing=item.get("volume_losing", 0),
+                    win_rate=item.get("win_rate", 0),
                 )
                 for item in items
             ]
         except Exception as e:
-            logger.exception(f"Error getting losses by category: {e}")
+            logger.exception(f"Error getting category stats: {e}")
             return []
 
     async def get_modifier_group_stats(

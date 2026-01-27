@@ -299,14 +299,17 @@ class CompetitorStats(BaseSchema):
 
 
 class CategoryLossStats(BaseSchema):
-    """Statistics for losses within a category (aggregated)."""
+    """Statistics for wins/losses within a category (aggregated)."""
 
     category: str
     display_name: str
-    loss_count: int = 0
-    loss_volume: int = 0
-    percentage_of_losses: float = 0.0
-    example_keywords: List[str] = Field(default_factory=list)  # Up to 5 example keywords
+    total_keywords: int = 0
+    total_volume: int = 0
+    keywords_winning: int = 0
+    keywords_losing: int = 0
+    volume_winning: int = 0
+    volume_losing: int = 0
+    win_rate: float = 0.0
 
 
 class CategoryValueLossStats(BaseSchema):

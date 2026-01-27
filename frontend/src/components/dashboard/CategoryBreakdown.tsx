@@ -92,44 +92,29 @@ export function CategoryBreakdown({ categories, brandName }: CategoryBreakdownPr
                         <div>
                           <span className="font-semibold text-gray-900">{category.display_name}</span>
                           <span className="ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-gray-100 text-gray-600">
-                            {category.loss_count}
+                            {category.keywords_losing}
                           </span>
                         </div>
                       </div>
                       <span className="text-sm font-bold text-amber-600">
-                        {formatNumber(category.loss_volume)} vol
+                        {formatNumber(category.volume_losing)} vol
                       </span>
                     </div>
-
-                    {/* Example Keywords */}
-                    {category.example_keywords && category.example_keywords.length > 0 && (
-                      <div className="ml-11 flex flex-wrap gap-1.5">
-                        {category.example_keywords.map((kw, idx) => (
-                          <span
-                            key={idx}
-                            className="text-xs px-2 py-1 rounded-md bg-amber-50 text-amber-700 border border-amber-200 keyword-tag"
-                            dir="auto"
-                          >
-                            {kw}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </div>
 
-                  {/* Progress Bar */}
+                  {/* Win Rate Bar */}
                   <div className="ml-11">
                     <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-gray-100">
                       <div
                         className="absolute left-0 top-0 h-full rounded-full transition-all"
                         style={{
-                          width: `${Math.min(100, category.percentage_of_losses * 2)}%`,
-                          background: 'linear-gradient(90deg, #F59E0B 0%, #D97706 100%)',
+                          width: `${category.win_rate}%`,
+                          background: 'linear-gradient(90deg, #10B981 0%, #059669 100%)',
                         }}
                       />
                     </div>
                     <span className="text-xs text-gray-500 mt-1 inline-block">
-                      {formatPercent(category.percentage_of_losses)} of losses
+                      {formatPercent(category.win_rate)} win rate
                     </span>
                   </div>
                 </button>

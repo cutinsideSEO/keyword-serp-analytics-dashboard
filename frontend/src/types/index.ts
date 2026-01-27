@@ -135,10 +135,13 @@ export interface CompetitorStats {
 export interface CategoryLossStats {
   category: string;
   display_name: string;
-  loss_count: number;
-  loss_volume: number;
-  percentage_of_losses: number;
-  example_keywords: string[];
+  total_keywords: number;
+  total_volume: number;
+  keywords_winning: number;
+  keywords_losing: number;
+  volume_winning: number;
+  volume_losing: number;
+  win_rate: number;
 }
 
 export interface CategoryValueLossStats {
