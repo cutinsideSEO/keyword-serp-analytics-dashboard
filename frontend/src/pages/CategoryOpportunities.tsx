@@ -5,22 +5,40 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { Compass, Target, Users } from 'lucide-react';
+import { Compass, Target, Users, TrendingUp, CheckCircle2, XCircle, Tag, TrendingDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { BrandPicker } from '../components/common/BrandPicker';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorDisplay } from '../components/common/ErrorBoundary';
 import { OpportunityKPICards } from '../components/dashboard/OpportunityKPICards';
 import { OpportunityBarChart } from '../components/dashboard/OpportunityBarChart';
-import { OpportunityModifierGroupsTable } from '../components/dashboard/OpportunityModifierGroupsTable';
+import { DataExplorer } from '../components/dashboard/DataExplorer';
 import { ModifierGroupDrawer } from '../components/dashboard/ModifierGroupDrawer';
 import { useApiWithParam } from '../hooks/useApi';
+import { useMarketConfig } from '../contexts/MarketConfigContext';
 import { getCategoryOpportunities, getCompetitorBrandedOpportunities } from '../api/endpoints';
+import { formatNumber, formatCompactNumber, formatPercent } from '../utils/formatters';
 import type {
   CategoryOpportunityDashboard,
   CompetitorBrandedDashboard,
   ModifierGroupOpportunity,
+  OpportunityCompetitor,
 } from '../types';
+
+function CompetitorBadge({ competitor }: { competitor: OpportunityCompetitor }) {
+  const { getStyles, getIcon } = useMarketConfig();
+  const styles = getStyles(competitor.domain_type);
+  const Icon = getIcon(competitor.domain_type);
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${styles.bgColor} ${styles.textColor} ${styles.borderColor} border`}
+    >
+      <Icon className="w-3 h-3" />
+      {competitor.domain.length > 15 ? competitor.domain.substring(0, 15) + '...' : competitor.domain}
+    </span>
+  );
+}
 
 export function CategoryOpportunities() {
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
@@ -92,6 +110,176 @@ export function CategoryOpportunities() {
       keywordType: 'competitor_branded',
     });
   };
+
+  // Modifier group table columns (shared by both non-branded and competitor tables)
+  const modifierColumns = [
+    {
+      key: 'modifier_group',
+      header: 'Modifier Group',
+      render: (item: ModifierGroupOpportunity) => (
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-md bg-emerald-100 flex items-center justify-center flex-shrink-0">
+            <Tag className="w-3.5 h-3.5 text-emerald-600" />
+          </div>
+          <span className="font-medium text-gray-900">{item.modifier_group}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'capture_rate',
+      header: 'Capture Rate',
+      align: 'right' as const,
+      render: (item: ModifierGroupOpportunity) => {
+        const isGood = item.capture_rate >= 50;
+        const isMid = item.capture_rate >= 25;
+        return (
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold ${
+              isGood
+                ? 'bg-emerald-100 text-emerald-700'
+                : isMid
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-rose-100 text-rose-700'
+            }`}
+          >
+            {isGood ? (
+              <CheckCircle2 className="w-3 h-3" />
+            ) : (
+              <XCircle className="w-3 h-3" />
+            )}
+            {formatPercent(item.capture_rate)}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'total_keywords',
+      header: 'Total',
+      align: 'right' as const,
+      render: (item: ModifierGroupOpportunity) => (
+        <div className="space-y-0.5">
+          <div className="font-medium text-gray-900">
+            {formatNumber(item.total_keywords)}
+          </div>
+          <div className="text-xs text-gray-500">
+            {formatCompactNumber(item.total_volume)} vol
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'keywords_captured',
+      header: 'Captured',
+      align: 'right' as const,
+      render: (item: ModifierGroupOpportunity) => (
+        <div className="space-y-0.5">
+          <div className="font-semibold text-emerald-600">
+            {formatNumber(item.keywords_captured)}
+          </div>
+          <div className="text-xs text-emerald-500">
+            {formatCompactNumber(item.volume_captured)} vol
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'keywords_uncaptured',
+      header: 'To Capture',
+      align: 'right' as const,
+      render: (item: ModifierGroupOpportunity) => (
+        <div className="space-y-0.5">
+          <div className="font-semibold text-amber-600">
+            {formatNumber(item.keywords_uncaptured)}
+          </div>
+          <div className="text-xs text-amber-500">
+            {formatCompactNumber(item.volume_uncaptured)} vol
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'avg_brand_position',
+      header: 'Avg Pos',
+      align: 'right' as const,
+      render: (item: ModifierGroupOpportunity) => {
+        if (item.avg_brand_position == null) {
+          return <span className="text-xs text-gray-400 italic">N/A</span>;
+        }
+        const isGood = item.avg_brand_position <= 3;
+        const isMid = item.avg_brand_position <= 10;
+        return (
+          <span
+            className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-bold ${
+              isGood
+                ? 'bg-emerald-100 text-emerald-700'
+                : isMid
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-gray-100 text-gray-700'
+            }`}
+          >
+            #{item.avg_brand_position.toFixed(1)}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'top_competitors',
+      header: 'Top Competitors',
+      render: (item: ModifierGroupOpportunity) => (
+        <div className="flex flex-wrap gap-1">
+          {item.top_competitors.slice(0, 3).map((comp, idx) => (
+            <CompetitorBadge key={idx} competitor={comp} />
+          ))}
+          {item.top_competitors.length > 3 && (
+            <span className="inline-flex items-center px-2 py-1 rounded-md bg-gray-100 text-gray-700 text-xs font-medium">
+              +{item.top_competitors.length - 3}
+            </span>
+          )}
+          {item.top_competitors.length === 0 && (
+            <span className="text-xs text-gray-400 italic">No competitors</span>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  // Build footer for non-branded table
+  const nonBrandedFooter = nonBrandedData && nonBrandedData.modifier_groups.length > 0 ? (
+    <div className="flex justify-between text-sm">
+      <div className="text-gray-600">
+        <span className="font-semibold text-gray-900">{nonBrandedData.modifier_groups.length}</span> modifier groups
+      </div>
+      <div className="flex gap-4">
+        <div className="text-emerald-600 flex items-center gap-1">
+          <TrendingUp className="w-3.5 h-3.5" />
+          {formatCompactNumber(nonBrandedData.modifier_groups.reduce((s, m) => s + m.volume_captured, 0))} captured
+        </div>
+        <div className="text-amber-600 flex items-center gap-1">
+          <TrendingDown className="w-3.5 h-3.5" />
+          {formatCompactNumber(nonBrandedData.modifier_groups.reduce((s, m) => s + m.volume_uncaptured, 0))} opportunity
+        </div>
+      </div>
+    </div>
+  ) : undefined;
+
+  // Build footer for competitor table
+  const competitorFooter = competitorData && competitorData.modifier_groups.length > 0 ? (
+    <div className="flex justify-between text-sm">
+      <div className="text-gray-600">
+        <span className="font-semibold text-gray-900">{competitorData.modifier_groups.length}</span> modifier groups
+      </div>
+      <div className="flex gap-4">
+        <div className="text-emerald-600 flex items-center gap-1">
+          <TrendingUp className="w-3.5 h-3.5" />
+          {formatCompactNumber(competitorData.modifier_groups.reduce((s, m) => s + m.volume_captured, 0))} captured
+        </div>
+        <div className="text-amber-600 flex items-center gap-1">
+          <TrendingDown className="w-3.5 h-3.5" />
+          {formatCompactNumber(competitorData.modifier_groups.reduce((s, m) => s + m.volume_uncaptured, 0))} opportunity
+        </div>
+      </div>
+    </div>
+  ) : undefined;
 
   return (
     <div className="space-y-8">
@@ -225,11 +413,23 @@ export function CategoryOpportunities() {
 
               {/* Modifier Groups Table */}
               <div ref={nonBrandedTableRef}>
-                <OpportunityModifierGroupsTable
-                  modifierGroups={nonBrandedData.modifier_groups}
-                  brandName={nonBrandedData.brand_name}
-                  keywordType="nonbranded"
+                <DataExplorer
+                  title="Opportunities by Modifier Group"
+                  description={`${nonBrandedData.modifier_groups.length} modifier groups - click any row to explore`}
+                  tooltipInfo={{
+                    title: 'Modifier Group Opportunities',
+                    description:
+                      'Non-branded keywords grouped by their modifier type. Shows opportunity size, capture rate, and top competitors.',
+                  }}
+                  icon={<Target className="h-5 w-5 text-emerald-600" />}
+                  iconBgClass="bg-emerald-100"
+                  data={nonBrandedData.modifier_groups}
+                  columns={modifierColumns}
+                  getRowKey={(item) => item.modifier_group}
                   onRowClick={handleNonBrandedRowClick}
+                  emptyMessage="No non-branded opportunities found"
+                  showMoreLabel="groups"
+                  footer={nonBrandedFooter}
                 />
               </div>
             </motion.div>
@@ -296,11 +496,23 @@ export function CategoryOpportunities() {
 
               {/* Modifier Groups Table */}
               <div ref={competitorTableRef}>
-                <OpportunityModifierGroupsTable
-                  modifierGroups={competitorData.modifier_groups}
-                  brandName={competitorData.brand_name}
-                  keywordType="competitor_branded"
+                <DataExplorer
+                  title="Competitor Branded Opportunities by Modifier Group"
+                  description={`${competitorData.modifier_groups.length} modifier groups - click any row to explore`}
+                  tooltipInfo={{
+                    title: 'Competitor Branded Opportunities',
+                    description:
+                      'Keywords branded to competitors grouped by modifier type. Shows capture potential and current competition.',
+                  }}
+                  icon={<Users className="h-5 w-5 text-purple-600" />}
+                  iconBgClass="bg-purple-100"
+                  data={competitorData.modifier_groups}
+                  columns={modifierColumns}
+                  getRowKey={(item) => item.modifier_group}
                   onRowClick={handleCompetitorRowClick}
+                  emptyMessage="No competitor branded opportunities found"
+                  showMoreLabel="groups"
+                  footer={competitorFooter}
                 />
               </div>
             </motion.div>
