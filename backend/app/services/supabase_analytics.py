@@ -362,11 +362,8 @@ class SupabaseAnalyticsService:
                 {"p_market_id": self.market_id, "p_brand_name": brand_name}
             ).execute()
 
-            if result.data:
-                data = result.data
-                # Handle both list and dict responses from RPC
-                if isinstance(data, list) and len(data) > 0:
-                    data = data[0]
+            data = unwrap_rpc_single(result.data, "get_category_opportunities")
+            if data:
                 kpis = CategoryOpportunityKPIs(
                     total_nonbranded_keywords=data.get("total_nonbranded_keywords", 0),
                     total_nonbranded_volume=data.get("total_nonbranded_volume", 0),
@@ -443,11 +440,8 @@ class SupabaseAnalyticsService:
                 {"p_market_id": self.market_id, "p_brand_name": brand_name}
             ).execute()
 
-            if result.data:
-                data = result.data
-                # Handle both list and dict responses from RPC
-                if isinstance(data, list) and len(data) > 0:
-                    data = data[0]
+            data = unwrap_rpc_single(result.data, "get_competitor_branded_opportunities")
+            if data:
                 kpis = CategoryOpportunityKPIs(
                     total_nonbranded_keywords=data.get("total_competitor_keywords", 0),
                     total_nonbranded_volume=data.get("total_competitor_volume", 0),
@@ -534,11 +528,8 @@ class SupabaseAnalyticsService:
                 }
             ).execute()
 
-            if result.data:
-                data = result.data
-                # Handle both list and dict responses from RPC
-                if isinstance(data, list) and len(data) > 0:
-                    data = data[0]
+            data = unwrap_rpc_single(result.data, "get_modifier_group_opportunity_breakdown")
+            if data:
                 top_values = [
                     OpportunityCategoryValue(
                         category_name=v.get("category_name", ""),
@@ -648,10 +639,8 @@ class SupabaseAnalyticsService:
                 }
             ).execute()
 
-            if result.data:
-                data = result.data
-                if isinstance(data, list) and len(data) > 0:
-                    data = data[0]
+            data = unwrap_rpc_single(result.data, "get_category_protection_breakdown")
+            if data:
                 top_values = [
                     CategoryValueProtectionStats(
                         value=v.get("value", ""),
@@ -744,10 +733,8 @@ class SupabaseAnalyticsService:
                 }
             ).execute()
 
-            if result.data:
-                data = result.data
-                if isinstance(data, list) and len(data) > 0:
-                    data = data[0]
+            data = unwrap_rpc_single(result.data, "get_modifier_group_protection_breakdown")
+            if data:
                 top_tags = [
                     TagProtectionStats(
                         tag=t.get("tag", ""),

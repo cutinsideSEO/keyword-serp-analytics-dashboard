@@ -4,6 +4,7 @@ Supabase Market Analytics Service for market overview dashboard.
 Uses Supabase RPC functions instead of SQLAlchemy for serverless compatibility.
 """
 
+import asyncio
 import logging
 from typing import List, Optional
 
@@ -40,14 +41,24 @@ class SupabaseMarketAnalyticsService:
         self.market_id = market_id or get_current_market_id()
         self._domain_types_cache = None
 
+    async def _rpc(self, function_name: str, params: dict):
+        """Execute an RPC call in a thread for true async parallelism.
+
+        The Supabase Python client is synchronous, so wrapping in
+        asyncio.to_thread allows asyncio.gather to parallelize calls.
+        """
+        return await asyncio.to_thread(
+            lambda: self.client.rpc(function_name, params).execute()
+        )
+
     async def get_domain_type_names(self) -> dict:
         """Get domain type names for this market."""
         if self._domain_types_cache is None:
             try:
-                result = self.client.rpc(
+                result = await self._rpc(
                     "get_domain_type_names",
                     {"p_market_id": self.market_id}
-                ).execute()
+                )
                 data = unwrap_rpc_single(result.data, "get_domain_type_names")
                 self._domain_types_cache = data if data else {
                     "all_types": [],
@@ -84,10 +95,10 @@ class SupabaseMarketAnalyticsService:
             List of ShareOfSearchItem ordered by total_volume descending
         """
         try:
-            result = self.client.rpc(
+            result = await self._rpc(
                 "get_share_of_search",
                 {"p_market_id": self.market_id, "p_limit": limit}
-            ).execute()
+            )
 
             items = unwrap_rpc_list(result.data)
             return [
@@ -96,10 +107,6 @@ class SupabaseMarketAnalyticsService:
                     total_volume=item.get("total_volume", 0),
                     keyword_count=item.get("keyword_count", 0),
                     share_percentage=item.get("share_percentage", 0),
-                    primary_domain=item.get("primary_domain"),
-                    domain_visibility=item.get("domain_visibility"),
-                    domain_win_count=item.get("domain_win_count"),
-                    domain_avg_position=item.get("domain_avg_position"),
                 )
                 for item in items
             ]
@@ -121,14 +128,14 @@ class SupabaseMarketAnalyticsService:
             List of DomainVisibilityItem ordered by visibility_score descending
         """
         try:
-            result = self.client.rpc(
+            result = await self._rpc(
                 "get_domain_visibility",
                 {
                     "p_market_id": self.market_id,
                     "p_domain_type": domain_type,
                     "p_limit": limit,
                 }
-            ).execute()
+            )
 
             items = unwrap_rpc_list(result.data)
             return [
@@ -156,10 +163,10 @@ class SupabaseMarketAnalyticsService:
             MarketProtectionKPIs with aggregate metrics
         """
         try:
-            result = self.client.rpc(
+            result = await self._rpc(
                 "get_market_protection_kpis",
                 {"p_market_id": self.market_id}
-            ).execute()
+            )
 
             if result.data:
                 data = result.data
@@ -199,10 +206,10 @@ class SupabaseMarketAnalyticsService:
             List of MarketLossDistribution ordered by loss_volume descending
         """
         try:
-            result = self.client.rpc(
+            result = await self._rpc(
                 "get_market_loss_distribution",
                 {"p_market_id": self.market_id}
-            ).execute()
+            )
 
             items = unwrap_rpc_list(result.data)
             return [
@@ -230,10 +237,10 @@ class SupabaseMarketAnalyticsService:
             List of BrandLossItem ordered by volume_lost descending
         """
         try:
-            result = self.client.rpc(
+            result = await self._rpc(
                 "get_biggest_losers",
                 {"p_market_id": self.market_id, "p_limit": limit}
-            ).execute()
+            )
 
             items = unwrap_rpc_list(result.data)
             return [
@@ -259,10 +266,10 @@ class SupabaseMarketAnalyticsService:
             List of CategoryMarketStats ordered by total_volume descending
         """
         try:
-            result = self.client.rpc(
+            result = await self._rpc(
                 "get_category_market_stats",
                 {"p_market_id": self.market_id}
-            ).execute()
+            )
 
             items = unwrap_rpc_list(result.data)
             return [
@@ -295,14 +302,14 @@ class SupabaseMarketAnalyticsService:
         """
         try:
             logger.info(f"Calling get_category_breakdown with market_id={self.market_id}, category_name={category_name}")
-            result = self.client.rpc(
+            result = await self._rpc(
                 "get_category_breakdown",
                 {
                     "p_market_id": self.market_id,
                     "p_category_name": category_name,
                     "p_limit": limit,
                 }
-            ).execute()
+            )
             logger.info(f"RPC result type: {type(result.data)}, has data: {bool(result.data)}")
 
             if result.data:
@@ -352,10 +359,10 @@ class SupabaseMarketAnalyticsService:
             List of ModifierGroupMarketStats ordered by total_volume descending
         """
         try:
-            result = self.client.rpc(
+            result = await self._rpc(
                 "get_modifier_group_market_stats",
                 {"p_market_id": self.market_id}
-            ).execute()
+            )
 
             items = unwrap_rpc_list(result.data)
             return [
@@ -385,14 +392,14 @@ class SupabaseMarketAnalyticsService:
             ModifierGroupBreakdown with full details
         """
         try:
-            result = self.client.rpc(
+            result = await self._rpc(
                 "get_modifier_group_breakdown",
                 {
                     "p_market_id": self.market_id,
                     "p_modifier_group": modifier_group,
                     "p_limit": limit,
                 }
-            ).execute()
+            )
 
             if result.data:
                 data = result.data
@@ -439,33 +446,63 @@ class SupabaseMarketAnalyticsService:
         Returns:
             MarketOverviewDashboard with all data
         """
-        # Fetch all components
-        share_of_search = await self.get_share_of_search(limit=20)
-
-        # Get non-brand domain types
+        # Phase 1: Get domain types (fast, needed for visibility calls)
         non_brand_types = await self.get_non_brand_type_names()
 
-        # First non-brand type is treated as "retailers"
         retailer_type = non_brand_types[0] if non_brand_types else None
         voice_types = non_brand_types[1:] if len(non_brand_types) > 1 else []
 
+        # Phase 2: Run all calls in parallel (RPC calls use asyncio.to_thread)
+        visibility_coros = []
+        if retailer_type:
+            visibility_coros.append(self.get_domain_visibility_by_type(retailer_type, limit=10))
+        for vt in voice_types:
+            visibility_coros.append(self.get_domain_visibility_by_type(vt, limit=10))
+
+        all_coros = [
+            self.get_share_of_search(limit=20),
+            *visibility_coros,
+            self.get_market_protection_kpis(),
+            self.get_market_loss_distribution(),
+            self.get_biggest_losers(limit=20),
+            self.get_category_market_stats(),
+            self.get_modifier_group_market_stats(),
+        ]
+
+        results = await asyncio.gather(*all_coros, return_exceptions=True)
+
+        # Unpack results (order matches all_coros above)
+        idx = 0
+        share_of_search = results[idx] if not isinstance(results[idx], Exception) else []
+        idx += 1
+
         top_retailers = []
         if retailer_type:
-            top_retailers = await self.get_domain_visibility_by_type(retailer_type, limit=10)
+            top_retailers = results[idx] if not isinstance(results[idx], Exception) else []
+            idx += 1
 
-        # Get influential voices (all remaining non-brand types combined)
         influential_voices = []
-        for voice_type in voice_types:
-            voices = await self.get_domain_visibility_by_type(voice_type, limit=10)
+        for _ in voice_types:
+            voices = results[idx] if not isinstance(results[idx], Exception) else []
             influential_voices.extend(voices)
+            idx += 1
         influential_voices.sort(key=lambda x: x.visibility_score, reverse=True)
         influential_voices = influential_voices[:10]
 
-        protection_kpis = await self.get_market_protection_kpis()
-        loss_distribution = await self.get_market_loss_distribution()
-        biggest_losers = await self.get_biggest_losers(limit=20)
-        category_stats = await self.get_category_market_stats()
-        modifier_group_stats = await self.get_modifier_group_market_stats()
+        protection_kpis = results[idx] if not isinstance(results[idx], Exception) else MarketProtectionKPIs()
+        idx += 1
+        loss_distribution = results[idx] if not isinstance(results[idx], Exception) else []
+        idx += 1
+        biggest_losers = results[idx] if not isinstance(results[idx], Exception) else []
+        idx += 1
+        category_stats = results[idx] if not isinstance(results[idx], Exception) else []
+        idx += 1
+        modifier_group_stats = results[idx] if not isinstance(results[idx], Exception) else []
+
+        # Log any errors from parallel calls
+        for i, r in enumerate(results):
+            if isinstance(r, Exception):
+                logger.error(f"Market overview parallel call {i} failed: {r}")
 
         return MarketOverviewDashboard(
             share_of_search=share_of_search,

@@ -35,11 +35,11 @@ export function ModifierGroupsTable({
           <InfoTooltip
             title="Performance by Modifier Group"
             description="Keywords are grouped by their modifiers (e.g., 'brand', 'brand + model', 'bicycle type + brand'). This shows how well you perform across different keyword types."
-            calculation="For each modifier group: Count wins vs losses, sum volumes, calculate win rate percentage, and compute average ranking position for your brand."
+            calculation="For each modifier group: Count wins vs losses, sum volumes, and calculate win rate percentage."
           />
         </h3>
         <p className="text-sm text-gray-600">
-          Breakdown of {brandName} keywords by modifier group showing wins, losses, and average position
+          Breakdown of {brandName} keywords by modifier group showing wins, losses, and win rate
         </p>
       </div>
 
@@ -58,12 +58,6 @@ export function ModifierGroupsTable({
               </th>
               <th className="text-right py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wide">
                 Win Rate
-              </th>
-              <th className="text-right py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                Avg Position
-              </th>
-              <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                Top Tags
               </th>
             </tr>
           </thead>
@@ -127,64 +121,7 @@ export function ModifierGroupsTable({
                     {formatPercent(mg.win_rate)}
                   </span>
                 </td>
-                <td className="py-4 px-4 text-right">
-                  {mg.avg_brand_position !== null ? (
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm font-bold">
-                      #{mg.avg_brand_position.toFixed(1)}
-                    </span>
-                  ) : (
-                    <span className="text-gray-400 text-sm">N/A</span>
-                  )}
-                </td>
-                <td className="py-4 px-4">
-                  <div className="flex flex-wrap gap-1">
-                    {Object.entries(mg.top_tags)
-                      .slice(0, 3)
-                      .map(([tag, count]) => {
-                        const [category, value] = tag.split(':');
-                        const categoryDisplay = category
-                          .split('_')
-                          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                          .join(' ');
-                        return (
-                          <span
-                            key={tag}
-                            className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium border border-blue-200"
-                          >
-                            <span className="font-semibold">{categoryDisplay}:</span>
-                            <span className="ml-1">{value} ({count})</span>
-                          </span>
-                        );
-                      })}
-                    {Object.keys(mg.top_tags).length > 3 && (
-                      <span className="inline-flex items-center px-2 py-1 rounded-md bg-gray-100 text-gray-700 text-xs font-medium">
-                        +{Object.keys(mg.top_tags).length - 3} more
-                      </span>
-                    )}
-                  </div>
-                </td>
               </motion.tr>
-              {/* Example Keywords Row */}
-              {mg.example_keywords && mg.example_keywords.length > 0 && (
-                <tr>
-                  <td colSpan={6} className="py-2 px-4 bg-gray-50">
-                    <div className="flex items-center gap-2 ml-14">
-                      <span className="text-xs font-semibold text-gray-500">Examples:</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {mg.example_keywords.map((kw, kidx) => (
-                          <span
-                            key={kidx}
-                            className="text-xs px-2 py-1 rounded-md bg-white text-gray-700 border border-gray-200 keyword-tag"
-                            dir="auto"
-                          >
-                            {kw}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              )}
               </React.Fragment>
             ))}
           </tbody>
