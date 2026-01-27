@@ -7,13 +7,13 @@ import {
   LayoutDashboard,
   Shield,
   TrendingUp,
-  Users,
   Settings,
   HelpCircle,
   ChevronLeft,
   ChevronRight,
-  Globe,
-  Layers,
+  Home,
+  Search,
+  BarChart3,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -24,13 +24,11 @@ interface SidebarProps {
 }
 
 const navigationItems = [
-  { id: 'market-overview', label: 'Market Overview', icon: Globe, href: '/market-overview', active: true },
-  { id: 'brand-protection', label: 'Brand Protection', icon: Shield, href: '/brand-protection', active: true },
-  { id: 'category-opportunities', label: 'Category Opportunities', icon: Layers, href: '/category-opportunities', active: true },
-  { id: 'config', label: 'Configuration', icon: Settings, href: '/config', active: true },
-  { id: 'categories', label: 'Categories', icon: LayoutDashboard, comingSoon: true },
-  { id: 'competitors', label: 'Competitors', icon: Users, comingSoon: true },
-  { id: 'trends', label: 'Trends', icon: TrendingUp, comingSoon: true },
+  { id: '', label: 'Home', icon: Home, href: '/', active: true, section: 'main' },
+  { id: 'protect', label: 'Protect', icon: Shield, href: '/protect', active: true, section: 'main', description: 'Brand defense' },
+  { id: 'discover', label: 'Discover', icon: Search, href: '/discover', active: true, section: 'main', description: 'Opportunities' },
+  { id: 'analyze', label: 'Analyze', icon: BarChart3, href: '/analyze', active: true, section: 'main', description: 'Market intel' },
+  { id: 'config', label: 'Configure', icon: Settings, href: '/config', active: true, section: 'settings' },
 ];
 
 const bottomItems = [
@@ -45,7 +43,7 @@ export function Sidebar({ currentPage }: SidebarProps) {
   const { currentMarketId, availableMarkets, setCurrentMarket, config } = useMarketConfig();
 
   // Determine current page from location if not provided
-  const activePage = currentPage || location.pathname.split('/')[1] || 'market-overview';
+  const activePage = currentPage || location.pathname.split('/')[1] || '';
 
   // Get current market name for display
   const currentMarket = availableMarkets.find(m => m.id === currentMarketId);
@@ -53,7 +51,7 @@ export function Sidebar({ currentPage }: SidebarProps) {
   return (
     <motion.aside
       initial={{ x: -300 }}
-      animate={{ x: 0, width: isCollapsed ? '80px' : '280px' }}
+      animate={{ x: 0, width: isCollapsed ? '72px' : '240px' }}
       transition={{ duration: 0.3, ease: 'easeInOut' }}
       className="fixed left-0 top-0 h-screen flex flex-col"
       style={{

@@ -8,11 +8,13 @@ import logging
 from typing import List, Optional, Tuple
 
 from app.supabase_db import get_supabase_client
+from app.utils.rpc_helpers import unwrap_rpc_single, unwrap_rpc_list
 from app.middleware.market_context import get_current_market_id
 from app.schemas import (
     BrandProtectionDashboard,
     BrandProtectionKPIs,
     BrandProtectionLoss,
+    BrandProtectionSummary,
     BrandProtectionWin,
     CategoryCompetitor,
     CategoryLossStats,
@@ -25,6 +27,8 @@ from app.schemas import (
     DomainTypeLossDetail,
     ExampleLoserKeyword,
     ExampleWinnerKeyword,
+    HomeDashboard,
+    HomeDashboardKPIs,
     ModifierGroupOpportunity,
     ModifierGroupOpportunityBreakdown,
     ModifierGroupProtectionBreakdown,
@@ -203,18 +207,17 @@ class SupabaseAnalyticsService:
                 }
             ).execute()
 
-            if result.data:
-                return [
-                    CompetitorStats(
-                        domain=item.get("domain", ""),
-                        domain_type=item.get("domain_type", "Unknown"),
-                        wins_count=item.get("keywords_captured", 0),
-                        wins_volume=item.get("volume_captured", 0),
-                        avg_position=float(item.get("avg_position", 1) or 1),
-                    )
-                    for item in result.data
-                ]
-            return []
+            items = unwrap_rpc_list(result.data)
+            return [
+                CompetitorStats(
+                    domain=item.get("domain", ""),
+                    domain_type=item.get("domain_type", "Unknown"),
+                    wins_count=item.get("keywords_captured", 0),
+                    wins_volume=item.get("volume_captured", 0),
+                    avg_position=float(item.get("avg_position", 1) or 1),
+                )
+                for item in items
+            ]
         except Exception as e:
             logger.exception(f"Error getting top competitors: {e}")
             return []
@@ -242,18 +245,17 @@ class SupabaseAnalyticsService:
                 }
             ).execute()
 
-            if result.data:
-                return [
-                    CategoryLossStats(
-                        category=item.get("category_name", ""),
-                        display_name=item.get("display_name", ""),
-                        loss_count=item.get("total_keywords", 0),
-                        loss_volume=item.get("total_volume", 0),
-                        example_keywords=item.get("top_values", []) or [],
-                    )
-                    for item in result.data
-                ]
-            return []
+            items = unwrap_rpc_list(result.data)
+            return [
+                CategoryLossStats(
+                    category=item.get("category_name", ""),
+                    display_name=item.get("display_name", ""),
+                    loss_count=item.get("total_keywords", 0),
+                    loss_volume=item.get("total_volume", 0),
+                    example_keywords=item.get("top_values", []) or [],
+                )
+                for item in items
+            ]
         except Exception as e:
             logger.exception(f"Error getting losses by category: {e}")
             return []
@@ -279,23 +281,22 @@ class SupabaseAnalyticsService:
                 }
             ).execute()
 
-            if result.data:
-                return [
-                    ModifierGroupStats(
-                        modifier_group=item.get("modifier_group", ""),
-                        total_keywords=item.get("total_keywords", 0),
-                        total_volume=item.get("total_volume", 0),
-                        keywords_winning=item.get("keywords_winning", 0),
-                        keywords_losing=item.get("keywords_losing", 0),
-                        volume_winning=item.get("volume_winning", 0),
-                        volume_losing=item.get("volume_losing", 0),
-                        win_rate=item.get("win_rate", 0),
-                        avg_position=item.get("avg_position"),
-                        top_tags=item.get("top_tags", []),
-                    )
-                    for item in result.data
-                ]
-            return []
+            items = unwrap_rpc_list(result.data)
+            return [
+                ModifierGroupStats(
+                    modifier_group=item.get("modifier_group", ""),
+                    total_keywords=item.get("total_keywords", 0),
+                    total_volume=item.get("total_volume", 0),
+                    keywords_winning=item.get("keywords_winning", 0),
+                    keywords_losing=item.get("keywords_losing", 0),
+                    volume_winning=item.get("volume_winning", 0),
+                    volume_losing=item.get("volume_losing", 0),
+                    win_rate=item.get("win_rate", 0),
+                    avg_position=item.get("avg_position"),
+                    top_tags=item.get("top_tags", []),
+                )
+                for item in items
+            ]
         except Exception as e:
             logger.exception(f"Error getting modifier group stats: {e}")
             return []
@@ -815,3 +816,156 @@ class SupabaseAnalyticsService:
         except Exception as e:
             logger.exception(f"Error getting modifier group protection breakdown: {e}")
             return ModifierGroupProtectionBreakdown(modifier_group=modifier_group)
+
+    def _calculate_health_score(self, win_rate_keywords: float, win_rate_volume: float) -> tuple:
+        """
+        Calculate brand health score from win rates.
+
+        Formula: 60% keyword win rate + 40% volume win rate
+
+        Args:
+            win_rate_keywords: Keyword win rate (0-100)
+            win_rate_volume: Volume win rate (0-100)
+
+        Returns:
+            Tuple of (score, grade)
+        """
+        score = round(win_rate_keywords * 0.6 + win_rate_volume * 0.4)
+
+        # Determine grade
+        if score >= 90:
+            grade = "A"
+        elif score >= 80:
+            grade = "B"
+        elif score >= 70:
+            grade = "C"
+        elif score >= 50:
+            grade = "D"
+        else:
+            grade = "F"
+
+        return score, grade
+
+    async def get_home_dashboard(self, brand_name: str) -> HomeDashboard:
+        """
+        Get home dashboard quick pulse data.
+
+        Lightweight endpoint for the HOME page. Returns health score,
+        opportunity size, and top threat.
+
+        Args:
+            brand_name: Brand to analyze
+
+        Returns:
+            HomeDashboard with KPIs
+        """
+        # Get brand protection KPIs
+        kpis = await self.get_brand_protection_kpis(brand_name)
+
+        # Calculate health score
+        health_score, health_grade = self._calculate_health_score(
+            kpis.win_rate_keywords, kpis.win_rate_volume
+        )
+
+        # Get top threat
+        competitors = await self.get_top_competitors(brand_name, limit=1)
+        top_threat = competitors[0] if competitors else None
+
+        # Fetch brand domains
+        brand_domains = []
+        has_domain_mapping = True
+        try:
+            result = self.client.table("brand_domains")\
+                .select("domain:domains(domain)")\
+                .eq("market_id", self.market_id)\
+                .eq("brand_name", brand_name)\
+                .execute()
+            if result.data:
+                brand_domains = [
+                    item["domain"]["domain"]
+                    for item in result.data
+                    if item.get("domain")
+                ]
+            has_domain_mapping = len(brand_domains) > 0
+        except Exception as e:
+            logger.warning(f"Error fetching brand domains: {e}")
+            has_domain_mapping = False
+
+        home_kpis = HomeDashboardKPIs(
+            health_score=health_score,
+            health_grade=health_grade,
+            win_rate_keywords=kpis.win_rate_keywords,
+            win_rate_volume=kpis.win_rate_volume,
+            volume_at_risk=kpis.volume_losing,
+            keywords_at_risk=kpis.keywords_losing,
+            top_threat_domain=top_threat.domain if top_threat else None,
+            top_threat_domain_type=top_threat.domain_type if top_threat else None,
+            top_threat_keywords=top_threat.wins_count if top_threat else 0,
+            top_threat_volume=top_threat.wins_volume if top_threat else 0,
+        )
+
+        return HomeDashboard(
+            brand_name=brand_name,
+            brand_domains=brand_domains,
+            kpis=home_kpis,
+            has_domain_mapping=has_domain_mapping,
+        )
+
+    async def get_brand_protection_summary(self, brand_name: str) -> BrandProtectionSummary:
+        """
+        Get lightweight brand protection summary with health score.
+
+        Smaller payload than the full dashboard.
+
+        Args:
+            brand_name: Brand to analyze
+
+        Returns:
+            BrandProtectionSummary with health score
+        """
+        # Get brand protection KPIs
+        kpis = await self.get_brand_protection_kpis(brand_name)
+
+        # Calculate health score
+        health_score, health_grade = self._calculate_health_score(
+            kpis.win_rate_keywords, kpis.win_rate_volume
+        )
+
+        # Get top threat
+        competitors = await self.get_top_competitors(brand_name, limit=1)
+        top_threat = competitors[0] if competitors else None
+
+        # Fetch brand domains
+        brand_domains = []
+        try:
+            result = self.client.table("brand_domains")\
+                .select("domain:domains(domain)")\
+                .eq("market_id", self.market_id)\
+                .eq("brand_name", brand_name)\
+                .execute()
+            if result.data:
+                brand_domains = [
+                    item["domain"]["domain"]
+                    for item in result.data
+                    if item.get("domain")
+                ]
+        except Exception as e:
+            logger.warning(f"Error fetching brand domains: {e}")
+
+        return BrandProtectionSummary(
+            brand_name=brand_name,
+            brand_domains=brand_domains,
+            health_score=health_score,
+            health_grade=health_grade,
+            total_keywords=kpis.total_branded_keywords,
+            keywords_winning=kpis.keywords_winning,
+            keywords_losing=kpis.keywords_losing,
+            volume_winning=kpis.volume_winning,
+            volume_losing=kpis.volume_losing,
+            win_rate_keywords=kpis.win_rate_keywords,
+            win_rate_volume=kpis.win_rate_volume,
+            top_threat_domain=top_threat.domain if top_threat else None,
+            top_threat_domain_type=top_threat.domain_type if top_threat else None,
+            top_threat_keywords=top_threat.wins_count if top_threat else 0,
+            top_threat_volume=top_threat.wins_volume if top_threat else 0,
+        )

@@ -8,6 +8,7 @@ import logging
 from typing import List, Optional
 
 from app.supabase_db import get_supabase_client
+from app.utils.rpc_helpers import unwrap_rpc_single, unwrap_rpc_list
 from app.middleware.market_context import get_current_market_id
 from app.schemas import (
     CategoryWithValues,
@@ -133,18 +134,17 @@ class SupabaseKeywordsService:
                 {"p_market_id": self.market_id}
             ).execute()
 
-            if result.data:
-                return [
-                    CategoryWithValues(
-                        id=item.get("id"),
-                        name=item.get("name", ""),
-                        display_name=item.get("display_name", ""),
-                        values=item.get("values", []),
-                        keyword_count=item.get("keyword_count", 0),
-                    )
-                    for item in result.data
-                ]
-            return []
+            items = unwrap_rpc_list(result.data)
+            return [
+                CategoryWithValues(
+                    id=item.get("id"),
+                    name=item.get("name", ""),
+                    display_name=item.get("display_name", ""),
+                    values=item.get("values", []),
+                    keyword_count=item.get("keyword_count", 0),
+                )
+                for item in items
+            ]
         except Exception as e:
             logger.exception(f"Error listing categories: {e}")
             return []
@@ -165,8 +165,8 @@ class SupabaseKeywordsService:
                 {"p_market_id": self.market_id, "p_keyword_id": keyword_id}
             ).execute()
 
-            if result.data:
-                data = result.data
+            data = unwrap_rpc_single(result.data, "get_keyword_detail")
+            if data:
                 serp_results = [
                     SerpResultResponse(
                         id=sr.get("id"),

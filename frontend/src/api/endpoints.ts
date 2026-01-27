@@ -8,6 +8,7 @@ import type {
   BrandWithDomains,
   BrandProtectionDashboard,
   BrandProtectionKPIs,
+  BrandProtectionSummary,
   BrandProtectionWin,
   BrandProtectionLoss,
   CompetitorStats,
@@ -35,6 +36,8 @@ import type {
   CategoryOpportunityDashboard,
   CompetitorBrandedDashboard,
   ModifierGroupOpportunityBreakdown,
+  // Home Dashboard types
+  HomeDashboard,
 } from '../types';
 
 // =============================================================================
@@ -94,7 +97,28 @@ export async function autoMapBrandDomains(
 }
 
 // =============================================================================
-// Dashboard
+// Dashboard - Home & Summary
+// =============================================================================
+
+export async function getHomeDashboard(brand: string): Promise<HomeDashboard> {
+  const response = await apiClient.get<HomeDashboard>('/dashboard/home', {
+    params: { brand },
+  });
+  return response.data;
+}
+
+export async function getBrandProtectionSummary(
+  brand: string
+): Promise<BrandProtectionSummary> {
+  const response = await apiClient.get<BrandProtectionSummary>(
+    '/dashboard/protect/summary',
+    { params: { brand } }
+  );
+  return response.data;
+}
+
+// =============================================================================
+// Dashboard - Brand Protection
 // =============================================================================
 
 export async function getBrandProtectionDashboard(

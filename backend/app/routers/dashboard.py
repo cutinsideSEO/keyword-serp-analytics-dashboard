@@ -14,12 +14,14 @@ from app.schemas import (
     BrandProtectionDashboard,
     BrandProtectionKPIs,
     BrandProtectionLoss,
+    BrandProtectionSummary,
     BrandProtectionWin,
     CategoryLossStats,
     CategoryOpportunityDashboard,
     CategoryProtectionBreakdown,
     CompetitorBrandedDashboard,
     CompetitorStats,
+    HomeDashboard,
     ModifierGroupOpportunityBreakdown,
     ModifierGroupProtectionBreakdown,
     ModifierGroupStats,
@@ -27,6 +29,62 @@ from app.schemas import (
 from app.services.supabase_analytics import SupabaseAnalyticsService
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+
+# =============================================================================
+# Home Dashboard Endpoints
+# =============================================================================
+
+
+@router.get("/home", response_model=HomeDashboard)
+async def get_home_dashboard(
+    brand: str = Query(..., description="Brand name to analyze"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
+) -> HomeDashboard:
+    """
+    Get home dashboard quick pulse data.
+
+    Lightweight endpoint (~5KB) for the HOME page quick overview.
+    Includes health score, opportunity size, and top threat.
+
+    Args:
+        brand: Brand name to analyze
+        market_id: Market ID (optional)
+
+    Returns:
+        Home dashboard with KPIs and health score
+    """
+    effective_market_id = market_id or get_current_market_id()
+    service = SupabaseAnalyticsService(market_id=effective_market_id)
+    return await service.get_home_dashboard(brand)
+
+
+@router.get("/protect/summary", response_model=BrandProtectionSummary)
+async def get_brand_protection_summary(
+    brand: str = Query(..., description="Brand name to analyze"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
+) -> BrandProtectionSummary:
+    """
+    Get lightweight brand protection summary with health score.
+
+    Smaller payload (~10KB) than the full dashboard.
+    Includes health score calculation and top threat.
+
+    Args:
+        brand: Brand name to analyze
+        market_id: Market ID (optional)
+
+    Returns:
+        Brand protection summary with health score
+    """
+    effective_market_id = market_id or get_current_market_id()
+    service = SupabaseAnalyticsService(market_id=effective_market_id)
+    return await service.get_brand_protection_summary(brand)
+
+
+# =============================================================================
+# Brand Protection Endpoints
+# =============================================================================
 
 
 @router.get("/brand-protection", response_model=BrandProtectionDashboard)

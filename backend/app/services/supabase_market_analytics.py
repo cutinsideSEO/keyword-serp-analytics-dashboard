@@ -8,6 +8,7 @@ import logging
 from typing import List, Optional
 
 from app.supabase_db import get_supabase_client
+from app.utils.rpc_helpers import unwrap_rpc_single, unwrap_rpc_list
 from app.middleware.market_context import get_current_market_id
 from app.schemas import (
     ShareOfSearchItem,
@@ -47,7 +48,8 @@ class SupabaseMarketAnalyticsService:
                     "get_domain_type_names",
                     {"p_market_id": self.market_id}
                 ).execute()
-                self._domain_types_cache = result.data or {
+                data = unwrap_rpc_single(result.data, "get_domain_type_names")
+                self._domain_types_cache = data if data else {
                     "all_types": [],
                     "brand_type": "Brand",
                     "non_brand_types": []
@@ -87,21 +89,20 @@ class SupabaseMarketAnalyticsService:
                 {"p_market_id": self.market_id, "p_limit": limit}
             ).execute()
 
-            if result.data:
-                return [
-                    ShareOfSearchItem(
-                        brand_name=item.get("brand_name", ""),
-                        total_volume=item.get("total_volume", 0),
-                        keyword_count=item.get("keyword_count", 0),
-                        share_percentage=item.get("share_percentage", 0),
-                        primary_domain=item.get("primary_domain"),
-                        domain_visibility=item.get("domain_visibility"),
-                        domain_win_count=item.get("domain_win_count"),
-                        domain_avg_position=item.get("domain_avg_position"),
-                    )
-                    for item in result.data
-                ]
-            return []
+            items = unwrap_rpc_list(result.data)
+            return [
+                ShareOfSearchItem(
+                    brand_name=item.get("brand_name", ""),
+                    total_volume=item.get("total_volume", 0),
+                    keyword_count=item.get("keyword_count", 0),
+                    share_percentage=item.get("share_percentage", 0),
+                    primary_domain=item.get("primary_domain"),
+                    domain_visibility=item.get("domain_visibility"),
+                    domain_win_count=item.get("domain_win_count"),
+                    domain_avg_position=item.get("domain_avg_position"),
+                )
+                for item in items
+            ]
         except Exception as e:
             logger.exception(f"Error getting share of search: {e}")
             return []
@@ -129,21 +130,20 @@ class SupabaseMarketAnalyticsService:
                 }
             ).execute()
 
-            if result.data:
-                return [
-                    DomainVisibilityItem(
-                        domain=item.get("domain", ""),
-                        domain_type=item.get("domain_type", ""),
-                        visibility_score=item.get("visibility_score", 0),
-                        ranking_count=item.get("ranking_count", 0),
-                        total_volume=item.get("total_volume", 0),
-                        win_count=item.get("win_count", 0),
-                        avg_position=item.get("avg_position", 0),
-                        top_brands=item.get("top_brands", []) or [],
-                    )
-                    for item in result.data
-                ]
-            return []
+            items = unwrap_rpc_list(result.data)
+            return [
+                DomainVisibilityItem(
+                    domain=item.get("domain", ""),
+                    domain_type=item.get("domain_type", ""),
+                    visibility_score=item.get("visibility_score", 0),
+                    ranking_count=item.get("ranking_count", 0),
+                    total_volume=item.get("total_volume", 0),
+                    win_count=item.get("win_count", 0),
+                    avg_position=item.get("avg_position", 0),
+                    top_brands=item.get("top_brands", []) or [],
+                )
+                for item in items
+            ]
         except Exception as e:
             logger.exception(f"Error getting domain visibility: {e}")
             return []
@@ -204,18 +204,17 @@ class SupabaseMarketAnalyticsService:
                 {"p_market_id": self.market_id}
             ).execute()
 
-            if result.data:
-                return [
-                    MarketLossDistribution(
-                        domain_type=item.get("domain_type", ""),
-                        loss_count=item.get("loss_count", 0),
-                        loss_volume=item.get("loss_volume", 0),
-                        percentage_of_losses=item.get("percentage_of_losses", 0),
-                        top_domains=item.get("top_domains", []) or [],
-                    )
-                    for item in result.data
-                ]
-            return []
+            items = unwrap_rpc_list(result.data)
+            return [
+                MarketLossDistribution(
+                    domain_type=item.get("domain_type", ""),
+                    loss_count=item.get("loss_count", 0),
+                    loss_volume=item.get("loss_volume", 0),
+                    percentage_of_losses=item.get("percentage_of_losses", 0),
+                    top_domains=item.get("top_domains", []) or [],
+                )
+                for item in items
+            ]
         except Exception as e:
             logger.exception(f"Error getting market loss distribution: {e}")
             return []
@@ -236,19 +235,18 @@ class SupabaseMarketAnalyticsService:
                 {"p_market_id": self.market_id, "p_limit": limit}
             ).execute()
 
-            if result.data:
-                return [
-                    BrandLossItem(
-                        brand_name=item.get("brand_name", ""),
-                        total_keywords=item.get("total_keywords", 0),
-                        keywords_lost=item.get("keywords_lost", 0),
-                        volume_lost=item.get("volume_lost", 0),
-                        win_rate=item.get("win_rate", 0),
-                        top_loss_modifier_groups=item.get("top_loss_modifier_groups", []) or [],
-                    )
-                    for item in result.data
-                ]
-            return []
+            items = unwrap_rpc_list(result.data)
+            return [
+                BrandLossItem(
+                    brand_name=item.get("brand_name", ""),
+                    total_keywords=item.get("total_keywords", 0),
+                    keywords_lost=item.get("keywords_lost", 0),
+                    volume_lost=item.get("volume_lost", 0),
+                    win_rate=item.get("win_rate", 0),
+                    top_loss_modifier_groups=item.get("top_loss_modifier_groups", []) or [],
+                )
+                for item in items
+            ]
         except Exception as e:
             logger.exception(f"Error getting biggest losers: {e}")
             return []
@@ -266,25 +264,18 @@ class SupabaseMarketAnalyticsService:
                 {"p_market_id": self.market_id}
             ).execute()
 
-            if result.data:
-                data = result.data
-                # RPC returns JSON - handle string or direct object
-                if isinstance(data, str):
-                    import json
-                    data = json.loads(data)
-                if isinstance(data, list):
-                    return [
-                        CategoryMarketStats(
-                            category_name=item.get("category_name", ""),
-                            display_name=item.get("display_name", ""),
-                            total_keywords=item.get("total_keywords", 0),
-                            total_volume=item.get("total_volume", 0),
-                            unique_values=item.get("unique_values", 0),
-                            top_values_preview=item.get("top_values_preview") or [],
-                        )
-                        for item in data
-                    ]
-            return []
+            items = unwrap_rpc_list(result.data)
+            return [
+                CategoryMarketStats(
+                    category_name=item.get("category_name", ""),
+                    display_name=item.get("display_name", ""),
+                    total_keywords=item.get("total_keywords", 0),
+                    total_volume=item.get("total_volume", 0),
+                    unique_values=item.get("unique_values", 0),
+                    top_values_preview=item.get("top_values_preview") or [],
+                )
+                for item in items
+            ]
         except Exception as e:
             logger.exception(f"Error getting category market stats: {e}")
             return []
@@ -366,23 +357,16 @@ class SupabaseMarketAnalyticsService:
                 {"p_market_id": self.market_id}
             ).execute()
 
-            if result.data:
-                data = result.data
-                # RPC returns JSON - handle string or direct object
-                if isinstance(data, str):
-                    import json
-                    data = json.loads(data)
-                if isinstance(data, list):
-                    return [
-                        ModifierGroupMarketStats(
-                            modifier_group=item.get("modifier_group", ""),
-                            total_keywords=item.get("total_keywords", 0),
-                            total_volume=item.get("total_volume", 0),
-                            top_tags_preview=item.get("top_tags_preview") or [],
-                        )
-                        for item in data
-                    ]
-            return []
+            items = unwrap_rpc_list(result.data)
+            return [
+                ModifierGroupMarketStats(
+                    modifier_group=item.get("modifier_group", ""),
+                    total_keywords=item.get("total_keywords", 0),
+                    total_volume=item.get("total_volume", 0),
+                    top_tags_preview=item.get("top_tags_preview") or [],
+                )
+                for item in items
+            ]
         except Exception as e:
             logger.exception(f"Error getting modifier group market stats: {e}")
             return []

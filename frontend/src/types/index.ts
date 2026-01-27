@@ -502,3 +502,47 @@ export interface CompetitorBrandedDashboard {
   kpis: CategoryOpportunityKPIs;
   modifier_groups: ModifierGroupOpportunity[];
 }
+
+// =============================================================================
+// Home Dashboard & Summary Types
+// =============================================================================
+
+export interface HomeDashboardKPIs {
+  health_score: number;
+  health_grade: string;
+  win_rate_keywords: number;
+  win_rate_volume: number;
+  volume_at_risk: number;
+  keywords_at_risk: number;
+  top_threat_domain: string | null;
+  top_threat_domain_type: string | null;
+  top_threat_keywords: number;
+  top_threat_volume: number;
+  market_rank: number | null;
+  share_of_search: number;
+}
+
+export interface HomeDashboard {
+  brand_name: string;
+  brand_domains: string[];
+  kpis: HomeDashboardKPIs;
+  has_domain_mapping: boolean;
+}
+
+export interface BrandProtectionSummary {
+  brand_name: string;
+  brand_domains: string[];
+  health_score: number;
+  health_grade: string;
+  total_keywords: number;
+  keywords_winning: number;
+  keywords_losing: number;
+  volume_winning: number;
+  volume_losing: number;
+  win_rate_keywords: number;
+  win_rate_volume: number;
+  top_threat_domain: string | null;
+  top_threat_domain_type: string | null;
+  top_threat_keywords: number;
+  top_threat_volume: number;
+}

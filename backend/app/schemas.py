@@ -698,6 +698,75 @@ class MarketOverviewDashboard(BaseSchema):
 
 
 # =============================================================================
+# Home Dashboard & Summary Schemas
+# =============================================================================
+
+
+class BrandHealthScore(BaseSchema):
+    """Brand health score calculation result."""
+
+    score: int = 0  # 0-100 composite score
+    grade: str = "N/A"  # A, B, C, D, F
+    win_rate_keywords: float = 0.0
+    win_rate_volume: float = 0.0
+    trend: str = "stable"  # up, down, stable (for future use)
+
+
+class HomeDashboardKPIs(BaseSchema):
+    """Quick pulse KPIs for the home dashboard."""
+
+    # Brand health (for selected brand)
+    health_score: int = 0
+    health_grade: str = "N/A"
+    win_rate_keywords: float = 0.0
+    win_rate_volume: float = 0.0
+    # Opportunity size
+    volume_at_risk: int = 0
+    keywords_at_risk: int = 0
+    # Top threat
+    top_threat_domain: Optional[str] = None
+    top_threat_domain_type: Optional[str] = None
+    top_threat_keywords: int = 0
+    top_threat_volume: int = 0
+    # Market position
+    market_rank: Optional[int] = None
+    share_of_search: float = 0.0
+
+
+class HomeDashboard(BaseSchema):
+    """Complete home dashboard data for quick pulse view."""
+
+    brand_name: str
+    brand_domains: List[str] = Field(default_factory=list)
+    kpis: HomeDashboardKPIs
+    # Recent alerts/insights could be added here later
+    has_domain_mapping: bool = True
+
+
+class BrandProtectionSummary(BaseSchema):
+    """Lightweight brand protection summary with health score."""
+
+    brand_name: str
+    brand_domains: List[str] = Field(default_factory=list)
+    # Health score
+    health_score: int = 0
+    health_grade: str = "N/A"
+    # Core KPIs
+    total_keywords: int = 0
+    keywords_winning: int = 0
+    keywords_losing: int = 0
+    volume_winning: int = 0
+    volume_losing: int = 0
+    win_rate_keywords: float = 0.0
+    win_rate_volume: float = 0.0
+    # Top threat summary
+    top_threat_domain: Optional[str] = None
+    top_threat_domain_type: Optional[str] = None
+    top_threat_keywords: int = 0
+    top_threat_volume: int = 0
+
+
+# =============================================================================
 # Category Opportunities Schemas
 # =============================================================================
 

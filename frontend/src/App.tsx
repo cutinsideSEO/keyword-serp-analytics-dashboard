@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Sidebar } from './components/layout/Sidebar';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { MarketConfigProvider } from './contexts/MarketConfigContext';
+import { Home } from './pages/Home';
 import { MarketOverview } from './pages/MarketOverview';
 import { BrandProtection } from './pages/BrandProtection';
 import { CategoryOpportunities } from './pages/CategoryOpportunities';
@@ -20,15 +21,29 @@ function App() {
           <Sidebar />
 
           {/* Main Content Area */}
-          <div className="flex-1" style={{ marginLeft: '280px' }}>
+          <div className="flex-1" style={{ marginLeft: '240px' }}>
             <main className="min-h-screen p-8">
               <ErrorBoundary>
                 <Routes>
-                  <Route path="/market-overview" element={<MarketOverview />} />
-                  <Route path="/brand-protection" element={<BrandProtection />} />
-                  <Route path="/category-opportunities" element={<CategoryOpportunities />} />
+                  {/* HOME */}
+                  <Route path="/" element={<Home />} />
+
+                  {/* PROTECT - Brand Defense */}
+                  <Route path="/protect" element={<BrandProtection />} />
+
+                  {/* DISCOVER - Opportunities */}
+                  <Route path="/discover" element={<CategoryOpportunities />} />
+
+                  {/* ANALYZE - Market Intelligence */}
+                  <Route path="/analyze" element={<MarketOverview />} />
+
+                  {/* CONFIGURE */}
                   <Route path="/config" element={<Config />} />
-                  <Route path="/" element={<Navigate to="/market-overview" replace />} />
+
+                  {/* Legacy redirects for bookmarks */}
+                  <Route path="/market-overview" element={<Navigate to="/analyze" replace />} />
+                  <Route path="/brand-protection" element={<Navigate to="/protect" replace />} />
+                  <Route path="/category-opportunities" element={<Navigate to="/discover" replace />} />
                 </Routes>
               </ErrorBoundary>
             </main>
