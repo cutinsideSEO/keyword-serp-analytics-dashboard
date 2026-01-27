@@ -23,7 +23,7 @@ export function MarketOverview() {
   const [data, setData] = useState<MarketOverviewDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { marketConfig } = useMarketConfig();
+  const { marketConfig, currentMarketId } = useMarketConfig();
 
   // Drawer state
   const [categoryDrawer, setCategoryDrawer] = useState<{
@@ -61,7 +61,7 @@ export function MarketOverview() {
 
   useEffect(() => {
     loadDashboard();
-  }, []);
+  }, [currentMarketId]);
 
   const loadDashboard = async () => {
     try {
