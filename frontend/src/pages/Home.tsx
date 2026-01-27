@@ -165,7 +165,7 @@ export function Home() {
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Monitoring</p>
                 <h3 className="font-semibold text-gray-900 text-2xl">{data.brand_name}</h3>
-                {data.brand_domains.length > 0 && (
+                {data.brand_domains?.length > 0 && (
                   <p className="text-sm text-muted-foreground mt-1">
                     {data.brand_domains.join(', ')}
                   </p>

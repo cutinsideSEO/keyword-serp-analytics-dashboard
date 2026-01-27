@@ -73,7 +73,7 @@ export function BrandProtection() {
 
   // Get top threat
   const getTopThreat = () => {
-    if (!data || data.top_competitors.length === 0) return null;
+    if (!data || !data.top_competitors?.length) return null;
     return data.top_competitors[0];
   };
 
@@ -227,18 +227,19 @@ export function BrandProtection() {
   const topThreat = getTopThreat();
 
   // Category table footer
-  const categoryFooter = data && data.losses_by_category.length > 0 ? (
+  const lossByCategory = data?.losses_by_category ?? [];
+  const categoryFooter = lossByCategory.length > 0 ? (
     <div className="flex justify-between text-sm">
       <div className="text-gray-600">
-        <span className="font-semibold text-gray-900">{data.losses_by_category.length}</span> categories
+        <span className="font-semibold text-gray-900">{lossByCategory.length}</span> categories
       </div>
       <div className="flex gap-4">
         <div className="text-rose-600 flex items-center gap-1">
           <TrendingDown className="w-3.5 h-3.5" />
-          {formatNumber(data.losses_by_category.reduce((s, c) => s + c.keywords_losing, 0))} lost
+          {formatNumber(lossByCategory.reduce((s, c) => s + c.keywords_losing, 0))} lost
         </div>
         <div className="text-rose-600">
-          {formatCompactNumber(data.losses_by_category.reduce((s, c) => s + c.volume_losing, 0))} volume lost
+          {formatCompactNumber(lossByCategory.reduce((s, c) => s + c.volume_losing, 0))} volume lost
         </div>
       </div>
     </div>
@@ -317,7 +318,7 @@ export function BrandProtection() {
       {selectedBrand && data && !loading && (
         <>
           {/* Brand Warning if no domains mapped */}
-          {data.brand_domains.length === 0 && (
+          {(!data.brand_domains || data.brand_domains.length === 0) && (
             <InsightCard
               priority="warning"
               title="No domains mapped for this brand"
@@ -372,13 +373,13 @@ export function BrandProtection() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <CompetitorChart
-                competitors={data.top_competitors}
+                competitors={data.top_competitors ?? []}
                 brandName={data.brand_name}
               />
             </div>
             <div>
               <DomainTypesChart
-                domainTypes={data.losses_by_domain_type}
+                domainTypes={data.losses_by_domain_type ?? []}
                 brandName={data.brand_name}
               />
             </div>
@@ -387,7 +388,7 @@ export function BrandProtection() {
           {/* Category Losses - DataExplorer with drawer */}
           <DataExplorer
             title="Loss Analysis by Category"
-            description={`${data.losses_by_category.length} categories - click any row to explore`}
+            description={`${lossByCategory.length} categories - click any row to explore`}
             tooltipInfo={{
               title: 'Category Loss Analysis',
               description:
@@ -395,7 +396,7 @@ export function BrandProtection() {
             }}
             icon={<Layers className="h-5 w-5 text-amber-600" />}
             iconBgClass="bg-amber-100"
-            data={data.losses_by_category}
+            data={lossByCategory}
             columns={categoryColumns}
             getRowKey={(item) => item.category}
             onRowClick={(item) =>
@@ -438,7 +439,7 @@ export function BrandProtection() {
           )}
 
           {/* Win/Loss Detail Table */}
-          <WinLossTable wins={data.wins} losses={data.losses} />
+          <WinLossTable wins={data.wins ?? []} losses={data.losses ?? []} />
         </>
       )}
 

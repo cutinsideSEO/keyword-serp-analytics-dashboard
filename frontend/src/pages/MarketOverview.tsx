@@ -181,7 +181,7 @@ export function MarketOverview() {
             Analyze
           </h1>
           <p className="text-sm text-muted-foreground">
-            Market intelligence across {data.protection_kpis.total_brands} brands
+            Market intelligence across {data.protection_kpis?.total_brands ?? 0} brands
           </p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -192,7 +192,7 @@ export function MarketOverview() {
             <div>
               <div className="text-xs text-muted-foreground">Market Size</div>
               <div className="text-xl font-semibold text-gray-900">
-                {formatVolume(data.protection_kpis.total_market_volume)} volume
+                {formatVolume(data.protection_kpis?.total_market_volume ?? 0)} volume
               </div>
             </div>
           </div>
@@ -205,7 +205,7 @@ export function MarketOverview() {
           <TrendingUp className="h-5 w-5 text-emerald-600" />
           Share of Search
         </h2>
-        <ShareOfSearchChart data={data.share_of_search} topN={10} />
+        <ShareOfSearchChart data={data.share_of_search ?? []} topN={10} />
       </section>
 
       {/* Top Players by Domain Type */}
@@ -242,20 +242,20 @@ export function MarketOverview() {
       <section>
         <h2 className="text-lg font-semibold mb-4">Market Brand Protection</h2>
         <MarketProtectionSnapshot
-          kpis={data.protection_kpis}
-          lossDistribution={data.loss_distribution}
+          kpis={data.protection_kpis ?? {}}
+          lossDistribution={data.loss_distribution ?? []}
         />
       </section>
 
       {/* Biggest Losers */}
       <section>
-        <BiggestLosersTable data={data.biggest_losers} limit={10} />
+        <BiggestLosersTable data={data.biggest_losers ?? []} limit={10} />
       </section>
 
       {/* Category Insights - DataExplorer with drawer */}
       <DataExplorer
         title="Category Insights"
-        description={`${data.category_stats.length} categories - click any row to explore`}
+        description={`${data.category_stats?.length ?? 0} categories - click any row to explore`}
         tooltipInfo={{
           title: 'Category Insights',
           description:
@@ -263,7 +263,7 @@ export function MarketOverview() {
         }}
         icon={<Layers className="h-5 w-5 text-emerald-600" />}
         iconBgClass="bg-emerald-100"
-        data={data.category_stats}
+        data={data.category_stats ?? []}
         columns={categoryColumns}
         getRowKey={(item) => item.category_name}
         onRowClick={(item) =>
@@ -280,7 +280,7 @@ export function MarketOverview() {
       {/* Modifier Group Analysis - DataExplorer with drawer */}
       <DataExplorer
         title="Modifier Group Analysis"
-        description={`${data.modifier_group_stats.length} groups - click any row to explore`}
+        description={`${data.modifier_group_stats?.length ?? 0} groups - click any row to explore`}
         tooltipInfo={{
           title: 'Modifier Group Analysis',
           description:
@@ -288,7 +288,7 @@ export function MarketOverview() {
         }}
         icon={<Tag className="h-5 w-5 text-purple-600" />}
         iconBgClass="bg-purple-100"
-        data={data.modifier_group_stats}
+        data={data.modifier_group_stats ?? []}
         columns={modifierColumns}
         getRowKey={(item) => item.modifier_group}
         onRowClick={(item) =>

@@ -235,21 +235,24 @@ export function CategoryOpportunities() {
     {
       key: 'top_competitors',
       header: 'Top Competitors',
-      render: (item: ModifierGroupOpportunity) => (
-        <div className="flex flex-wrap gap-1">
-          {item.top_competitors.slice(0, 3).map((comp, idx) => (
-            <CompetitorBadge key={idx} competitor={comp} />
-          ))}
-          {item.top_competitors.length > 3 && (
-            <span className="inline-flex items-center px-2 py-1 rounded-md bg-gray-100 text-gray-700 text-xs font-medium">
-              +{item.top_competitors.length - 3}
-            </span>
-          )}
-          {item.top_competitors.length === 0 && (
-            <span className="text-xs text-gray-400 italic">No competitors</span>
-          )}
-        </div>
-      ),
+      render: (item: ModifierGroupOpportunity) => {
+        const competitors = item.top_competitors ?? [];
+        return (
+          <div className="flex flex-wrap gap-1">
+            {competitors.slice(0, 3).map((comp, idx) => (
+              <CompetitorBadge key={idx} competitor={comp} />
+            ))}
+            {competitors.length > 3 && (
+              <span className="inline-flex items-center px-2 py-1 rounded-md bg-gray-100 text-gray-700 text-xs font-medium">
+                +{competitors.length - 3}
+              </span>
+            )}
+            {competitors.length === 0 && (
+              <span className="text-xs text-gray-400 italic">No competitors</span>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -319,38 +322,42 @@ export function CategoryOpportunities() {
   ];
 
   // Build footer for non-branded table
-  const nonBrandedFooter = nonBrandedData && nonBrandedData.modifier_groups.length > 0 ? (
+  const nbModGroups = nonBrandedData?.modifier_groups ?? [];
+  const nonBrandedFooter = nbModGroups.length > 0 ? (
     <div className="flex justify-between text-sm">
       <div className="text-gray-600">
-        <span className="font-semibold text-gray-900">{nonBrandedData.modifier_groups.length}</span> modifier groups
+        <span className="font-semibold text-gray-900">{nbModGroups.length}</span> modifier groups
       </div>
       <div className="flex gap-4">
         <div className="text-emerald-600 flex items-center gap-1">
           <TrendingUp className="w-3.5 h-3.5" />
-          {formatCompactNumber(nonBrandedData.modifier_groups.reduce((s, m) => s + m.volume_captured, 0))} captured
+          {formatCompactNumber(nbModGroups.reduce((s, m) => s + m.volume_captured, 0))} captured
         </div>
         <div className="text-amber-600 flex items-center gap-1">
           <TrendingDown className="w-3.5 h-3.5" />
-          {formatCompactNumber(nonBrandedData.modifier_groups.reduce((s, m) => s + m.volume_uncaptured, 0))} opportunity
+          {formatCompactNumber(nbModGroups.reduce((s, m) => s + m.volume_uncaptured, 0))} opportunity
         </div>
       </div>
     </div>
   ) : undefined;
 
   // Build footer for competitor table
-  const competitorFooter = competitorData && competitorData.modifier_groups.length > 0 ? (
+  const compModGroups = competitorData?.modifier_groups ?? [];
+  const compBrands = competitorData?.competitor_brands ?? [];
+  const compCatStats = competitorData?.category_stats ?? [];
+  const competitorFooter = compModGroups.length > 0 ? (
     <div className="flex justify-between text-sm">
       <div className="text-gray-600">
-        <span className="font-semibold text-gray-900">{competitorData.modifier_groups.length}</span> modifier groups
+        <span className="font-semibold text-gray-900">{compModGroups.length}</span> modifier groups
       </div>
       <div className="flex gap-4">
         <div className="text-emerald-600 flex items-center gap-1">
           <TrendingUp className="w-3.5 h-3.5" />
-          {formatCompactNumber(competitorData.modifier_groups.reduce((s, m) => s + m.volume_captured, 0))} captured
+          {formatCompactNumber(compModGroups.reduce((s, m) => s + m.volume_captured, 0))} captured
         </div>
         <div className="text-amber-600 flex items-center gap-1">
           <TrendingDown className="w-3.5 h-3.5" />
-          {formatCompactNumber(competitorData.modifier_groups.reduce((s, m) => s + m.volume_uncaptured, 0))} opportunity
+          {formatCompactNumber(compModGroups.reduce((s, m) => s + m.volume_uncaptured, 0))} opportunity
         </div>
       </div>
     </div>
@@ -417,7 +424,7 @@ export function CategoryOpportunities() {
       {selectedBrand && !loading && (
         <>
           {/* Brand Info Banner */}
-          {nonBrandedData && nonBrandedData.brand_domains.length > 0 && (
+          {nonBrandedData && nonBrandedData.brand_domains?.length > 0 && (
             <div className="rounded-xl bg-gray-50 border border-gray-200 px-6 py-4 flex items-start gap-4">
               <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
                 <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -435,7 +442,7 @@ export function CategoryOpportunities() {
             </div>
           )}
 
-          {nonBrandedData && nonBrandedData.brand_domains.length === 0 && (
+          {nonBrandedData && (!nonBrandedData.brand_domains || nonBrandedData.brand_domains.length === 0) && (
             <div className="rounded-xl bg-gray-50 border border-gray-200 px-6 py-4 flex items-start gap-4">
               <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
                 <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -478,9 +485,9 @@ export function CategoryOpportunities() {
               <OpportunityKPICards kpis={nonBrandedData.kpis} />
 
               {/* Opportunity Bar Chart */}
-              {nonBrandedData.modifier_groups.length > 0 && (
+              {nbModGroups.length > 0 && (
                 <OpportunityBarChart
-                  modifierGroups={nonBrandedData.modifier_groups}
+                  modifierGroups={nbModGroups}
                   limit={10}
                   onGroupClick={handleNonBrandedGroupClick}
                 />
@@ -490,7 +497,7 @@ export function CategoryOpportunities() {
               <div ref={nonBrandedTableRef}>
                 <DataExplorer
                   title="Opportunities by Modifier Group"
-                  description={`${nonBrandedData.modifier_groups.length} modifier groups - click any row to explore`}
+                  description={`${nbModGroups.length} modifier groups - click any row to explore`}
                   tooltipInfo={{
                     title: 'Modifier Group Opportunities',
                     description:
@@ -498,7 +505,7 @@ export function CategoryOpportunities() {
                   }}
                   icon={<Target className="h-5 w-5 text-emerald-600" />}
                   iconBgClass="bg-emerald-100"
-                  data={nonBrandedData.modifier_groups}
+                  data={nbModGroups}
                   columns={modifierColumns}
                   getRowKey={(item) => item.modifier_group}
                   onRowClick={handleNonBrandedRowClick}
@@ -509,17 +516,17 @@ export function CategoryOpportunities() {
               </div>
 
               {/* Category Opportunities Table */}
-              {nonBrandedData.category_stats && nonBrandedData.category_stats.length > 0 && (
+              {(nonBrandedData.category_stats?.length ?? 0) > 0 && (
                 <DataExplorer
                   title="Opportunities by Category"
-                  description={`${nonBrandedData.category_stats.length} categories - click any row to explore`}
+                  description={`${nonBrandedData.category_stats!.length} categories - click any row to explore`}
                   tooltipInfo={{
                     title: 'Category Opportunities',
                     description: 'Non-branded keywords grouped by category. Shows opportunity size and capture rate.',
                   }}
                   icon={<Layers className="h-5 w-5 text-emerald-600" />}
                   iconBgClass="bg-emerald-100"
-                  data={nonBrandedData.category_stats}
+                  data={nonBrandedData.category_stats!}
                   columns={categoryColumns}
                   getRowKey={(item) => item.category_name}
                   onRowClick={(item) => setCategoryDrawer({
@@ -538,7 +545,7 @@ export function CategoryOpportunities() {
           {/* ============================================================= */}
           {/* COMPETITOR BRANDED OPPORTUNITIES SECTION */}
           {/* ============================================================= */}
-          {competitorData && competitorData.modifier_groups.length > 0 && (
+          {competitorData && compModGroups.length > 0 && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -559,13 +566,13 @@ export function CategoryOpportunities() {
               </div>
 
               {/* Competitor Brands Found */}
-              {competitorData.competitor_brands.length > 0 && (
+              {compBrands.length > 0 && (
                 <div className="rounded-xl bg-gray-50 border border-gray-200 px-6 py-4">
                   <p className="text-sm font-semibold text-gray-900 mb-2">
-                    Competitor brands found ({competitorData.competitor_brands.length}):
+                    Competitor brands found ({compBrands.length}):
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {competitorData.competitor_brands.slice(0, 15).map((brand, idx) => (
+                    {compBrands.slice(0, 15).map((brand, idx) => (
                       <span
                         key={idx}
                         className="px-3 py-1 rounded-full bg-white border border-gray-200 text-sm text-gray-700 font-medium"
@@ -573,9 +580,9 @@ export function CategoryOpportunities() {
                         {brand}
                       </span>
                     ))}
-                    {competitorData.competitor_brands.length > 15 && (
+                    {compBrands.length > 15 && (
                       <span className="px-3 py-1 rounded-full bg-gray-100 border border-gray-200 text-sm text-gray-700 font-medium">
-                        +{competitorData.competitor_brands.length - 15} more
+                        +{compBrands.length - 15} more
                       </span>
                     )}
                   </div>
@@ -586,9 +593,9 @@ export function CategoryOpportunities() {
               <OpportunityKPICards kpis={competitorData.kpis} variant="competitor" />
 
               {/* Opportunity Bar Chart */}
-              {competitorData.modifier_groups.length > 0 && (
+              {compModGroups.length > 0 && (
                 <OpportunityBarChart
-                  modifierGroups={competitorData.modifier_groups}
+                  modifierGroups={compModGroups}
                   limit={10}
                   onGroupClick={handleCompetitorGroupClick}
                 />
@@ -598,7 +605,7 @@ export function CategoryOpportunities() {
               <div ref={competitorTableRef}>
                 <DataExplorer
                   title="Competitor Branded Opportunities by Modifier Group"
-                  description={`${competitorData.modifier_groups.length} modifier groups - click any row to explore`}
+                  description={`${compModGroups.length} modifier groups - click any row to explore`}
                   tooltipInfo={{
                     title: 'Competitor Branded Opportunities',
                     description:
@@ -606,7 +613,7 @@ export function CategoryOpportunities() {
                   }}
                   icon={<Users className="h-5 w-5 text-purple-600" />}
                   iconBgClass="bg-purple-100"
-                  data={competitorData.modifier_groups}
+                  data={compModGroups}
                   columns={modifierColumns}
                   getRowKey={(item) => item.modifier_group}
                   onRowClick={handleCompetitorRowClick}
@@ -617,17 +624,17 @@ export function CategoryOpportunities() {
               </div>
 
               {/* Competitor Category Opportunities Table */}
-              {competitorData.category_stats && competitorData.category_stats.length > 0 && (
+              {compCatStats.length > 0 && (
                 <DataExplorer
                   title="Competitor Branded Opportunities by Category"
-                  description={`${competitorData.category_stats.length} categories - click any row to explore`}
+                  description={`${compCatStats.length} categories - click any row to explore`}
                   tooltipInfo={{
                     title: 'Competitor Branded Category Opportunities',
                     description: 'Competitor-branded keywords grouped by category. Shows capture potential.',
                   }}
                   icon={<Layers className="h-5 w-5 text-purple-600" />}
                   iconBgClass="bg-purple-100"
-                  data={competitorData.category_stats}
+                  data={compCatStats}
                   columns={categoryColumns}
                   getRowKey={(item) => item.category_name}
                   onRowClick={(item) => setCategoryDrawer({
@@ -644,7 +651,7 @@ export function CategoryOpportunities() {
           )}
 
           {/* No Competitor Data Message */}
-          {competitorData && competitorData.modifier_groups.length === 0 && (
+          {competitorData && compModGroups.length === 0 && (
             <div className="mt-12 pt-8 border-t-2 border-gray-200">
               <div className="rounded-xl bg-gray-50 border border-gray-200 p-8 text-center">
                 <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
