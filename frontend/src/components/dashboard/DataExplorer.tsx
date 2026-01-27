@@ -2,11 +2,11 @@
  * Unified DataExplorer component.
  * Replaces CategoryProtectionExplorer, ModifierGroupProtectionExplorer,
  * CategoryExplorer, and ModifierGroupExplorer with a single configurable component.
+ * Upgraded: custom card styling, gradient icon badge, bg-gray-50 thead, optional footer.
  */
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Card, Title, Text } from '@tremor/react';
 import { ChevronRight, Loader2 } from 'lucide-react';
 import { InfoTooltip } from '../common/InfoTooltip';
 
@@ -37,6 +37,7 @@ export interface DataExplorerProps<T> {
   emptyMessage?: string;
   showMoreLabel?: string;
   initialVisibleCount?: number;
+  footer?: React.ReactNode;
 }
 
 export function DataExplorer<T>({
@@ -54,6 +55,7 @@ export function DataExplorer<T>({
   emptyMessage = 'No data available',
   showMoreLabel = 'items',
   initialVisibleCount = 10,
+  footer,
 }: DataExplorerProps<T>) {
   const [visibleCount, setVisibleCount] = useState(initialVisibleCount);
 
@@ -69,12 +71,16 @@ export function DataExplorer<T>({
   };
 
   return (
-    <Card className="overflow-hidden">
+    <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-2 mb-4">
-        <div className={`p-2 rounded-lg ${iconBgClass}`}>{icon}</div>
+      <div className="flex items-center gap-3 mb-4">
+        <div
+          className={`w-10 h-10 rounded-lg flex items-center justify-center ${iconBgClass}`}
+        >
+          {icon}
+        </div>
         <div>
-          <Title className="flex items-center gap-2">
+          <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             {title}
             {tooltipInfo && (
               <InfoTooltip
@@ -83,8 +89,10 @@ export function DataExplorer<T>({
                 calculation={tooltipInfo.calculation}
               />
             )}
-          </Title>
-          {description && <Text className="text-gray-500">{description}</Text>}
+          </h3>
+          {description && (
+            <p className="text-sm text-gray-600">{description}</p>
+          )}
         </div>
       </div>
 
@@ -99,14 +107,14 @@ export function DataExplorer<T>({
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto -mx-6">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-200">
+                <tr className="bg-gray-50 border-y border-gray-200">
                   {columns.map((col) => (
                     <th
                       key={String(col.key)}
-                      className={`px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider ${
+                      className={`px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider ${
                         col.align === 'right'
                           ? 'text-right'
                           : col.align === 'center'
@@ -142,7 +150,7 @@ export function DataExplorer<T>({
                       {columns.map((col) => (
                         <td
                           key={String(col.key)}
-                          className={`px-4 py-3 text-sm ${
+                          className={`px-6 py-3.5 text-sm ${
                             col.align === 'right'
                               ? 'text-right'
                               : col.align === 'center'
@@ -154,7 +162,7 @@ export function DataExplorer<T>({
                         </td>
                       ))}
                       {onRowClick && (
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-4 py-3.5 text-right">
                           {isLoadingRow ? (
                             <Loader2 className="w-4 h-4 animate-spin text-gray-400 ml-auto" />
                           ) : (
@@ -168,6 +176,13 @@ export function DataExplorer<T>({
               </tbody>
             </table>
           </div>
+
+          {/* Footer */}
+          {footer && (
+            <div className="-mx-6 mt-0 px-6 py-3 bg-gray-50 border-t border-gray-200">
+              {footer}
+            </div>
+          )}
 
           {/* Show More Button */}
           {hasMore && (
@@ -186,7 +201,7 @@ export function DataExplorer<T>({
           )}
         </>
       )}
-    </Card>
+    </div>
   );
 }
 

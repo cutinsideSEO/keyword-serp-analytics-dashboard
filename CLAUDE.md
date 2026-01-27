@@ -80,6 +80,11 @@ Frontend API Call → FastAPI Router → Service Method → Supabase RPC → Pos
 | Backend Service | `backend/app/services/supabase_keywords.py` | Keyword filtering via RPC |
 | Backend Schemas | `backend/app/schemas.py` | Pydantic response models |
 | Backend Utils | `backend/app/utils/rpc_helpers.py` | `unwrap_rpc_single()` / `unwrap_rpc_list()` for RPC response normalization |
+| Frontend Drawers | `frontend/src/components/dashboard/ModifierGroupDrawer.tsx` | Unified modifier group drill-down (protection + opportunity) |
+| Frontend Drawers | `frontend/src/components/dashboard/CategoryDetailDrawer.tsx` | Category drill-down drawer (protection) |
+| Frontend Tables | `frontend/src/components/dashboard/DataExplorer.tsx` | Generic data table with row click, pagination, footer |
+| Frontend Pages | `frontend/src/pages/BrandProtection.tsx` | Protect page (brand health, categories, modifier groups) |
+| Frontend Pages | `frontend/src/pages/CategoryOpportunities.tsx` | Discover page (non-branded + competitor opportunities) |
 
 ### Adding a New Dashboard Endpoint
 
@@ -183,9 +188,17 @@ const Icon = getIcon(competitor.domain_type);
 
 **API client** (axios): Request interceptor auto-adds `X-Market-ID` header + `market_id` query param + cache-bust `_t` timestamp on all requests. Dev server proxies `/api` to `http://localhost:8000`.
 
-**Drawer pattern**: Detail views use the reusable `Drawer.tsx` component (slide-in from right, escape key, overlay click-to-close, body scroll lock). Used for category/modifier breakdowns instead of expandable rows.
+**Drawer pattern**: All drill-down detail views use side-panel drawers (slide-in from right, escape key, overlay click-to-close, body scroll lock). Click any table row on any page to open a drawer with detailed breakdown. Two unified, context-aware drawer components handle all drill-downs:
+
+- **`ModifierGroupDrawer`** (`frontend/src/components/dashboard/ModifierGroupDrawer.tsx`) — Used by both Protect and Opportunities pages. Accepts a `context: 'protection' | 'opportunity'` prop to switch between win/loss metrics (protection) and capture/uncapture metrics (opportunity). Also accepts `keywordType?: 'nonbranded' | 'competitor_branded'` for the opportunity context. Contains hero stats with SVG progress ring, tabbed content (Values/Tags, Competitors, Keywords), and custom CSS visualizations (no Tremor charts).
+- **`CategoryDetailDrawer`** (`frontend/src/components/dashboard/CategoryDetailDrawer.tsx`) — Used by the Protect page for category breakdowns. Accepts `context: 'protection' | 'opportunity'` prop. Contains hero stats, tabbed content (Values, Competitors, Keywords), and custom CSS visualizations replacing Tremor BarChart/DonutChart.
+- **Base `Drawer`** (`frontend/src/components/common/Drawer.tsx`) — Low-level reusable shell that both drawers build on.
+
+**DataExplorer** (`frontend/src/components/dashboard/DataExplorer.tsx`): Generic table component used for all data tables on Protect page. Accepts typed columns via `ExplorerColumn<T>[]`, supports row click handlers (for opening drawers), pagination via "Show More", optional footer, and loading states. Custom styled card (no Tremor Card dependency).
 
 **Data fetching hooks**: `useApi(fetchFn)` and `useApiWithParam(fetchFn, param)` handle loading/error states.
+
+**Shared formatters** (`frontend/src/utils/formatters.ts`): Use `formatNumber()` for exact counts, `formatCompactNumber()` for abbreviated volume (e.g., "1.2M"), and `formatPercent()` for percentages. Never create local formatting functions in components.
 
 ## Backend Architecture
 

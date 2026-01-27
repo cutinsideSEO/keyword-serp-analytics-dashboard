@@ -5,7 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { Grid, Col } from '@tremor/react';
-import { Shield, Layers, Tag } from 'lucide-react';
+import { Shield, Layers, Tag, TrendingDown, CheckCircle2, XCircle } from 'lucide-react';
 import { BrandPicker } from '../components/common/BrandPicker';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorDisplay } from '../components/common/ErrorBoundary';
@@ -14,13 +14,14 @@ import { OpportunityCard } from '../components/dashboard/OpportunityCard';
 import { ThreatCard } from '../components/dashboard/ThreatCard';
 import { DataExplorer } from '../components/dashboard/DataExplorer';
 import { CategoryDetailDrawer } from '../components/dashboard/CategoryDetailDrawer';
-import { ModifierDetailDrawer } from '../components/dashboard/ModifierDetailDrawer';
+import { ModifierGroupDrawer } from '../components/dashboard/ModifierGroupDrawer';
 import { InsightCard } from '../components/dashboard/InsightCard';
 import { CompetitorChart } from '../components/dashboard/CompetitorChart';
 import { DomainTypesChart } from '../components/dashboard/DomainTypesChart';
 import { WinLossTable } from '../components/dashboard/WinLossTable';
 import { useApiWithParam } from '../hooks/useApi';
 import { getBrandProtectionDashboard, getModifierGroupStats } from '../api/endpoints';
+import { formatCompactNumber, formatNumber } from '../utils/formatters';
 import type {
   BrandProtectionDashboard as DashboardData,
   ModifierGroupStats,
@@ -76,37 +77,60 @@ export function BrandProtection() {
     return data.top_competitors[0];
   };
 
-  const formatVolume = (vol: number) => {
-    if (vol >= 1000000) return `${(vol / 1000000).toFixed(1)}M`;
-    if (vol >= 1000) return `${(vol / 1000).toFixed(0)}K`;
-    return vol.toString();
-  };
-
   // Category table columns
   const categoryColumns = [
     {
       key: 'display_name',
       header: 'Category',
       render: (item: CategoryLossStats) => (
-        <span className="font-medium text-gray-900">{item.display_name}</span>
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-md bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <Layers className="w-3.5 h-3.5 text-amber-600" />
+          </div>
+          <span className="font-medium text-gray-900">{item.display_name}</span>
+        </div>
       ),
     },
     {
       key: 'win_rate',
       header: 'Win Rate',
       align: 'right' as const,
+      render: (item: CategoryLossStats) => {
+        const isGood = item.win_rate >= 80;
+        const isMid = item.win_rate >= 50;
+        return (
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold ${
+              isGood
+                ? 'bg-emerald-100 text-emerald-700'
+                : isMid
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-rose-100 text-rose-700'
+            }`}
+          >
+            {isGood ? (
+              <CheckCircle2 className="w-3 h-3" />
+            ) : (
+              <XCircle className="w-3 h-3" />
+            )}
+            {item.win_rate.toFixed(0)}%
+          </span>
+        );
+      },
+    },
+    {
+      key: 'total_keywords',
+      header: 'Total',
+      align: 'right' as const,
       render: (item: CategoryLossStats) => (
-        <span
-          className={`font-medium ${
-            item.win_rate >= 80
-              ? 'text-emerald-600'
-              : item.win_rate >= 50
-              ? 'text-amber-600'
-              : 'text-rose-600'
-          }`}
-        >
-          {item.win_rate.toFixed(0)}%
-        </span>
+        <div className="space-y-0.5">
+          <div className="font-medium text-gray-900">
+            {formatNumber(item.total_keywords)}
+          </div>
+          <div className="text-xs text-gray-500">
+            {formatCompactNumber(item.total_volume)} vol
+          </div>
+        </div>
       ),
     },
     {
@@ -114,15 +138,14 @@ export function BrandProtection() {
       header: 'Lost',
       align: 'right' as const,
       render: (item: CategoryLossStats) => (
-        <span className="text-rose-600">{item.keywords_losing}</span>
-      ),
-    },
-    {
-      key: 'volume_losing',
-      header: 'Volume Lost',
-      align: 'right' as const,
-      render: (item: CategoryLossStats) => (
-        <span className="text-rose-600">{formatVolume(item.volume_losing)}</span>
+        <div className="space-y-0.5">
+          <div className="font-semibold text-rose-600">
+            {formatNumber(item.keywords_losing)}
+          </div>
+          <div className="text-xs text-rose-500">
+            {formatCompactNumber(item.volume_losing)} vol
+          </div>
+        </div>
       ),
     },
   ];
@@ -133,25 +156,54 @@ export function BrandProtection() {
       key: 'modifier_group',
       header: 'Modifier Group',
       render: (item: ModifierGroupStats) => (
-        <span className="font-medium text-gray-900">{item.modifier_group}</span>
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-md bg-purple-100 flex items-center justify-center flex-shrink-0">
+            <Tag className="w-3.5 h-3.5 text-purple-600" />
+          </div>
+          <span className="font-medium text-gray-900">{item.modifier_group}</span>
+        </div>
       ),
     },
     {
       key: 'win_rate',
       header: 'Win Rate',
       align: 'right' as const,
+      render: (item: ModifierGroupStats) => {
+        const isGood = item.win_rate >= 80;
+        const isMid = item.win_rate >= 50;
+        return (
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold ${
+              isGood
+                ? 'bg-emerald-100 text-emerald-700'
+                : isMid
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-rose-100 text-rose-700'
+            }`}
+          >
+            {isGood ? (
+              <CheckCircle2 className="w-3 h-3" />
+            ) : (
+              <XCircle className="w-3 h-3" />
+            )}
+            {item.win_rate.toFixed(0)}%
+          </span>
+        );
+      },
+    },
+    {
+      key: 'total_keywords',
+      header: 'Total',
+      align: 'right' as const,
       render: (item: ModifierGroupStats) => (
-        <span
-          className={`font-medium ${
-            item.win_rate >= 80
-              ? 'text-emerald-600'
-              : item.win_rate >= 50
-              ? 'text-amber-600'
-              : 'text-rose-600'
-          }`}
-        >
-          {item.win_rate.toFixed(0)}%
-        </span>
+        <div className="space-y-0.5">
+          <div className="font-medium text-gray-900">
+            {formatNumber(item.total_keywords)}
+          </div>
+          <div className="text-xs text-gray-500">
+            {formatCompactNumber(item.total_volume)} vol
+          </div>
+        </div>
       ),
     },
     {
@@ -159,21 +211,56 @@ export function BrandProtection() {
       header: 'Lost',
       align: 'right' as const,
       render: (item: ModifierGroupStats) => (
-        <span className="text-rose-600">{item.keywords_losing}</span>
-      ),
-    },
-    {
-      key: 'volume_losing',
-      header: 'Volume Lost',
-      align: 'right' as const,
-      render: (item: ModifierGroupStats) => (
-        <span className="text-rose-600">{formatVolume(item.volume_losing)}</span>
+        <div className="space-y-0.5">
+          <div className="font-semibold text-rose-600">
+            {formatNumber(item.keywords_losing)}
+          </div>
+          <div className="text-xs text-rose-500">
+            {formatCompactNumber(item.volume_losing)} vol
+          </div>
+        </div>
       ),
     },
   ];
 
   const healthScore = calculateHealthScore();
   const topThreat = getTopThreat();
+
+  // Category table footer
+  const categoryFooter = data && data.losses_by_category.length > 0 ? (
+    <div className="flex justify-between text-sm">
+      <div className="text-gray-600">
+        <span className="font-semibold text-gray-900">{data.losses_by_category.length}</span> categories
+      </div>
+      <div className="flex gap-4">
+        <div className="text-rose-600 flex items-center gap-1">
+          <TrendingDown className="w-3.5 h-3.5" />
+          {formatNumber(data.losses_by_category.reduce((s, c) => s + c.keywords_losing, 0))} lost
+        </div>
+        <div className="text-rose-600">
+          {formatCompactNumber(data.losses_by_category.reduce((s, c) => s + c.volume_losing, 0))} volume lost
+        </div>
+      </div>
+    </div>
+  ) : undefined;
+
+  // Modifier table footer
+  const modifierFooter = modifierGroups && modifierGroups.length > 0 ? (
+    <div className="flex justify-between text-sm">
+      <div className="text-gray-600">
+        <span className="font-semibold text-gray-900">{modifierGroups.length}</span> groups
+      </div>
+      <div className="flex gap-4">
+        <div className="text-rose-600 flex items-center gap-1">
+          <TrendingDown className="w-3.5 h-3.5" />
+          {formatNumber(modifierGroups.reduce((s, m) => s + m.keywords_losing, 0))} lost
+        </div>
+        <div className="text-rose-600">
+          {formatCompactNumber(modifierGroups.reduce((s, m) => s + m.volume_losing, 0))} volume lost
+        </div>
+      </div>
+    </div>
+  ) : undefined;
 
   return (
     <div className="space-y-6">
@@ -320,6 +407,7 @@ export function BrandProtection() {
             }
             emptyMessage="No category losses found - great job!"
             showMoreLabel="categories"
+            footer={categoryFooter}
           />
 
           {/* Modifier Groups - DataExplorer with drawer */}
@@ -345,6 +433,7 @@ export function BrandProtection() {
               }
               emptyMessage="No modifier groups found"
               showMoreLabel="groups"
+              footer={modifierFooter}
             />
           )}
 
@@ -365,8 +454,8 @@ export function BrandProtection() {
         context="protection"
       />
 
-      {/* Modifier Detail Drawer */}
-      <ModifierDetailDrawer
+      {/* Modifier Group Drawer (unified) */}
+      <ModifierGroupDrawer
         isOpen={modifierDrawer.isOpen}
         onClose={() => setModifierDrawer({ isOpen: false, modifierGroup: '' })}
         modifierGroup={modifierDrawer.modifierGroup}

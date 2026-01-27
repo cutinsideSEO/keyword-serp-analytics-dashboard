@@ -1,6 +1,7 @@
 /**
  * Category Opportunities page.
  * Shows non-branded keyword opportunities AND competitor branded opportunities for a selected brand.
+ * Drill-down via ModifierGroupDrawer (side panel).
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -12,14 +13,26 @@ import { ErrorDisplay } from '../components/common/ErrorBoundary';
 import { OpportunityKPICards } from '../components/dashboard/OpportunityKPICards';
 import { OpportunityBarChart } from '../components/dashboard/OpportunityBarChart';
 import { OpportunityModifierGroupsTable } from '../components/dashboard/OpportunityModifierGroupsTable';
+import { ModifierGroupDrawer } from '../components/dashboard/ModifierGroupDrawer';
 import { useApiWithParam } from '../hooks/useApi';
 import { getCategoryOpportunities, getCompetitorBrandedOpportunities } from '../api/endpoints';
-import type { CategoryOpportunityDashboard, CompetitorBrandedDashboard } from '../types';
+import type {
+  CategoryOpportunityDashboard,
+  CompetitorBrandedDashboard,
+  ModifierGroupOpportunity,
+} from '../types';
 
 export function CategoryOpportunities() {
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const nonBrandedTableRef = useRef<HTMLDivElement>(null);
   const competitorTableRef = useRef<HTMLDivElement>(null);
+
+  // Drawer state
+  const [drawerState, setDrawerState] = useState<{
+    isOpen: boolean;
+    modifierGroup: string;
+    keywordType: 'nonbranded' | 'competitor_branded';
+  }>({ isOpen: false, modifierGroup: '', keywordType: 'nonbranded' });
 
   // Fetch non-branded opportunities
   const fetchNonBranded = useCallback(
@@ -61,6 +74,23 @@ export function CategoryOpportunities() {
     if (competitorTableRef.current) {
       competitorTableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+  };
+
+  // Handle row click to open drawer
+  const handleNonBrandedRowClick = (item: ModifierGroupOpportunity) => {
+    setDrawerState({
+      isOpen: true,
+      modifierGroup: item.modifier_group,
+      keywordType: 'nonbranded',
+    });
+  };
+
+  const handleCompetitorRowClick = (item: ModifierGroupOpportunity) => {
+    setDrawerState({
+      isOpen: true,
+      modifierGroup: item.modifier_group,
+      keywordType: 'competitor_branded',
+    });
   };
 
   return (
@@ -199,6 +229,7 @@ export function CategoryOpportunities() {
                   modifierGroups={nonBrandedData.modifier_groups}
                   brandName={nonBrandedData.brand_name}
                   keywordType="nonbranded"
+                  onRowClick={handleNonBrandedRowClick}
                 />
               </div>
             </motion.div>
@@ -269,6 +300,7 @@ export function CategoryOpportunities() {
                   modifierGroups={competitorData.modifier_groups}
                   brandName={competitorData.brand_name}
                   keywordType="competitor_branded"
+                  onRowClick={handleCompetitorRowClick}
                 />
               </div>
             </motion.div>
@@ -291,6 +323,18 @@ export function CategoryOpportunities() {
           )}
         </>
       )}
+
+      {/* Modifier Group Drawer */}
+      <ModifierGroupDrawer
+        isOpen={drawerState.isOpen}
+        onClose={() =>
+          setDrawerState({ isOpen: false, modifierGroup: '', keywordType: 'nonbranded' })
+        }
+        modifierGroup={drawerState.modifierGroup}
+        brandName={selectedBrand || ''}
+        context="opportunity"
+        keywordType={drawerState.keywordType}
+      />
     </div>
   );
 }

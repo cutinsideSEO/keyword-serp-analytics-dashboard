@@ -1,26 +1,24 @@
 /**
- * Expandable table showing modifier group opportunities.
- * Shows top 3 competitors in table, full details on expand.
+ * Table showing modifier group opportunities.
+ * Click a row to open the ModifierGroupDrawer (no inline expansion).
  */
 
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   ChevronRight,
   Target,
   TrendingUp,
-  FileText,
 } from 'lucide-react';
 import type { ModifierGroupOpportunity, OpportunityCompetitor } from '../../types';
 import { formatNumber, formatCompactNumber, formatPercent } from '../../utils/formatters';
 import { InfoTooltip } from '../common/InfoTooltip';
 import { useMarketConfig } from '../../contexts/MarketConfigContext';
-import { OpportunityExpandedDetails } from './OpportunityExpandedDetails';
 
 interface OpportunityModifierGroupsTableProps {
   modifierGroups: ModifierGroupOpportunity[];
   brandName: string;
   keywordType?: 'nonbranded' | 'competitor_branded';
+  onRowClick?: (item: ModifierGroupOpportunity) => void;
 }
 
 function CompetitorBadge({ competitor }: { competitor: OpportunityCompetitor }) {
@@ -40,23 +38,10 @@ function CompetitorBadge({ competitor }: { competitor: OpportunityCompetitor }) 
 
 export function OpportunityModifierGroupsTable({
   modifierGroups,
-  brandName,
-  keywordType = 'nonbranded',
+  brandName: _brandName,
+  keywordType: _keywordType = 'nonbranded',
+  onRowClick,
 }: OpportunityModifierGroupsTableProps) {
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-
-  const toggleExpand = (modifierGroup: string) => {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(modifierGroup)) {
-        next.delete(modifierGroup);
-      } else {
-        next.add(modifierGroup);
-      }
-      return next;
-    });
-  };
-
   if (modifierGroups.length === 0) {
     return (
       <div className="bg-white rounded-2xl p-8 border border-gray-200 text-center">
@@ -89,7 +74,7 @@ export function OpportunityModifierGroupsTable({
           />
         </h3>
         <p className="text-sm text-gray-600 ml-13">
-          Click a row to expand and see detailed competitor breakdown
+          Click a row to see detailed breakdown
         </p>
       </div>
 
@@ -97,7 +82,6 @@ export function OpportunityModifierGroupsTable({
         <table className="w-full">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wide w-8"></th>
               <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wide">
                 Modifier Group
               </th>
@@ -119,151 +103,127 @@ export function OpportunityModifierGroupsTable({
               <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wide">
                 Top Competitors
               </th>
+              {onRowClick && <th className="w-8"></th>}
             </tr>
           </thead>
           <tbody>
-            {modifierGroups.map((mg, index) => {
-              const isExpanded = expandedGroups.has(mg.modifier_group);
+            {modifierGroups.map((mg, index) => (
+              <motion.tr
+                key={mg.modifier_group}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.6 + index * 0.03 }}
+                className="border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => onRowClick?.(mg)}
+              >
+                {/* Modifier Group Name */}
+                <td className="py-4 px-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center flex-shrink-0">
+                      <Target className="w-5 h-5 text-white" />
+                    </div>
+                    <span className="font-semibold text-gray-900">
+                      {mg.modifier_group}
+                    </span>
+                  </div>
+                </td>
 
-              return (
-                <React.Fragment key={mg.modifier_group}>
-                  <motion.tr
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.6 + index * 0.03 }}
-                    className={`border-b border-gray-100 cursor-pointer transition-colors ${
-                      isExpanded ? 'bg-emerald-50/50' : 'hover:bg-gray-50'
+                {/* Opportunity Size */}
+                <td className="py-4 px-4 text-right">
+                  <div className="space-y-0.5">
+                    <div className="font-bold text-gray-900">
+                      {formatCompactNumber(mg.total_volume)}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {formatNumber(mg.total_keywords)} keywords
+                    </div>
+                  </div>
+                </td>
+
+                {/* Captured */}
+                <td className="py-4 px-4 text-right">
+                  <div className="space-y-0.5">
+                    <div className="font-semibold text-emerald-700">
+                      {formatNumber(mg.keywords_captured)}
+                    </div>
+                    <div className="text-xs text-emerald-600">
+                      {formatCompactNumber(mg.volume_captured)} vol
+                    </div>
+                  </div>
+                </td>
+
+                {/* To Capture */}
+                <td className="py-4 px-4 text-right">
+                  <div className="space-y-0.5">
+                    <div className="font-semibold text-amber-700">
+                      {formatNumber(mg.keywords_uncaptured)}
+                    </div>
+                    <div className="text-xs text-amber-600">
+                      {formatCompactNumber(mg.volume_uncaptured)} vol
+                    </div>
+                  </div>
+                </td>
+
+                {/* Capture Rate */}
+                <td className="py-4 px-4 text-right">
+                  <span
+                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-bold ${
+                      mg.capture_rate >= 50
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : mg.capture_rate >= 25
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-red-100 text-red-700'
                     }`}
-                    onClick={() => toggleExpand(mg.modifier_group)}
                   >
-                    {/* Expand Icon */}
-                    <td className="py-4 px-4">
-                      <motion.div
-                        animate={{ rotate: isExpanded ? 90 : 0 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        <ChevronRight className="w-4 h-4 text-gray-400" />
-                      </motion.div>
-                    </td>
+                    <TrendingUp className="w-3 h-3" />
+                    {formatPercent(mg.capture_rate)}
+                  </span>
+                </td>
 
-                    {/* Modifier Group Name */}
-                    <td className="py-4 px-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center flex-shrink-0">
-                          <Target className="w-5 h-5 text-white" />
-                        </div>
-                        <span className="font-semibold text-gray-900">
-                          {mg.modifier_group}
-                        </span>
-                      </div>
-                    </td>
+                {/* Avg Position */}
+                <td className="py-4 px-4 text-right">
+                  {mg.avg_brand_position != null ? (
+                    <span
+                      className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-bold ${
+                        mg.avg_brand_position <= 3
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : mg.avg_brand_position <= 10
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      #{mg.avg_brand_position.toFixed(1)}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400 italic">Not ranked</span>
+                  )}
+                </td>
 
-                    {/* Opportunity Size - Volume first, then keywords */}
-                    <td className="py-4 px-4 text-right">
-                      <div className="space-y-0.5">
-                        <div className="font-bold text-gray-900">
-                          {formatCompactNumber(mg.total_volume)}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {formatNumber(mg.total_keywords)} keywords
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Captured */}
-                    <td className="py-4 px-4 text-right">
-                      <div className="space-y-0.5">
-                        <div className="font-semibold text-emerald-700">
-                          {formatNumber(mg.keywords_captured)}
-                        </div>
-                        <div className="text-xs text-emerald-600">
-                          {formatCompactNumber(mg.volume_captured)} vol
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* To Capture */}
-                    <td className="py-4 px-4 text-right">
-                      <div className="space-y-0.5">
-                        <div className="font-semibold text-amber-700">
-                          {formatNumber(mg.keywords_uncaptured)}
-                        </div>
-                        <div className="text-xs text-amber-600">
-                          {formatCompactNumber(mg.volume_uncaptured)} vol
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Capture Rate */}
-                    <td className="py-4 px-4 text-right">
-                      <span
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-bold ${
-                          mg.capture_rate >= 50
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : mg.capture_rate >= 25
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-red-100 text-red-700'
-                        }`}
-                      >
-                        <TrendingUp className="w-3 h-3" />
-                        {formatPercent(mg.capture_rate)}
+                {/* Top Competitors */}
+                <td className="py-4 px-4">
+                  <div className="flex flex-wrap gap-1">
+                    {mg.top_competitors.slice(0, 3).map((comp, idx) => (
+                      <CompetitorBadge key={idx} competitor={comp} />
+                    ))}
+                    {mg.top_competitors.length > 3 && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-md bg-gray-100 text-gray-700 text-xs font-medium">
+                        +{mg.top_competitors.length - 3}
                       </span>
-                    </td>
-
-                    {/* Avg Position */}
-                    <td className="py-4 px-4 text-right">
-                      {mg.avg_brand_position != null ? (
-                        <span
-                          className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-bold ${
-                            mg.avg_brand_position <= 3
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : mg.avg_brand_position <= 10
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-gray-100 text-gray-700'
-                          }`}
-                        >
-                          #{mg.avg_brand_position.toFixed(1)}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400 italic">Not ranked</span>
-                      )}
-                    </td>
-
-                    {/* Top Competitors */}
-                    <td className="py-4 px-4">
-                      <div className="flex flex-wrap gap-1">
-                        {mg.top_competitors.slice(0, 3).map((comp, idx) => (
-                          <CompetitorBadge key={idx} competitor={comp} />
-                        ))}
-                        {mg.top_competitors.length > 3 && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-md bg-gray-100 text-gray-700 text-xs font-medium">
-                            +{mg.top_competitors.length - 3}
-                          </span>
-                        )}
-                        {mg.top_competitors.length === 0 && (
-                          <span className="text-xs text-gray-400 italic">No competitors</span>
-                        )}
-                      </div>
-                    </td>
-                  </motion.tr>
-
-                  {/* Expanded Details - Lazy loaded */}
-                  <AnimatePresence>
-                    {isExpanded && (
-                      <tr>
-                        <td colSpan={8} className="p-0">
-                          <OpportunityExpandedDetails
-                            brandName={brandName}
-                            modifierGroup={mg.modifier_group}
-                            keywordType={keywordType}
-                          />
-                        </td>
-                      </tr>
                     )}
-                  </AnimatePresence>
-                </React.Fragment>
-              );
-            })}
+                    {mg.top_competitors.length === 0 && (
+                      <span className="text-xs text-gray-400 italic">No competitors</span>
+                    )}
+                  </div>
+                </td>
+
+                {/* Chevron */}
+                {onRowClick && (
+                  <td className="py-4 px-2">
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                  </td>
+                )}
+              </motion.tr>
+            ))}
           </tbody>
         </table>
       </div>
