@@ -887,6 +887,16 @@ async def run_full_import(
         # Then import SERP data (references keywords)
         json_stats = await service.import_serp_json(json_path)
 
+        # Refresh materialized view for fast winner lookups
+        try:
+            await session.execute(
+                text("REFRESH MATERIALIZED VIEW CONCURRENTLY organic_winners")
+            )
+            await session.commit()
+            logger.info("Refreshed organic_winners materialized view")
+        except Exception as e:
+            logger.warning(f"Could not refresh organic_winners view (may not exist yet): {e}")
+
         return {
             "cleared": cleared,
             "csv_import": csv_stats,

@@ -143,7 +143,9 @@ results = await asyncio.gather(
 )
 ```
 
-This pattern is used in `supabase_market_analytics.py` and reduces the total Market Overview load time from ~20s (sequential) to ~1s (parallel).
+This pattern is used in both `supabase_analytics.py` and `supabase_market_analytics.py`. It reduces page load times from sum-of-RPCs to max-of-RPCs (e.g., Market Overview: ~20s sequential to ~3s parallel, Protect: ~5s sequential to ~1s parallel).
+
+**Key rule**: Any dashboard method that calls 2+ independent RPCs should use `asyncio.gather()`. Handle failures gracefully with `return_exceptions=True` and fallback defaults for each result.
 
 ### Creating or Modifying RPC Functions (DDL)
 
@@ -270,12 +272,79 @@ RPC functions should not return fields that no frontend component displays. Befo
 ### Domain Types Vary Per Market
 Each market has its own domain types (e.g., bicycle_us uses "Brand", "Retailer", "UGC", "3rd Party" while insurance_il uses "Insurance Company", "Insurance Agent", "Comparison Platform", "UGC", "3rd Party"). Never hardcode domain type names — always query `market_domain_types` or `brand_domains` filtered by `market_id`.
 
+### Winner Lookups: Always Use `organic_winners`
+All "who won keyword X?" queries must JOIN the `organic_winners` materialized view instead of filtering `serp_results` directly. This ensures:
+- Correct column: `rank_group = 1` (not `rank_absolute = 1`)
+- Organic only: excludes paid ads and featured snippets
+- Performance: scans ~100K rows instead of 1.8M
+
+```sql
+-- CORRECT: use organic_winners for winner lookups
+JOIN organic_winners ow ON ow.keyword_id = k.id
+
+-- WRONG: scanning full serp_results with rank_absolute (wrong column)
+JOIN serp_results sr ON sr.keyword_id = k.id AND sr.rank_absolute = 1
+
+-- WRONG: scanning full serp_results even with correct column (slow, no organic filter)
+JOIN serp_results sr ON sr.keyword_id = k.id AND sr.rank_group = 1
+```
+
+**When to keep using `serp_results`**: Only for "what position does domain X have for keyword Y?" — i.e., looking up a specific domain's rank, not finding the winner. Example:
+```sql
+-- This is NOT a winner lookup — it's a position lookup. Keep serp_results.
+LEFT JOIN serp_results sr ON sr.keyword_id = k.id
+    AND sr.domain_id = ANY(v_brand_domain_ids)
+```
+
+### `rank_group` vs `rank_absolute`
+- **`rank_group`**: Position within a result type (e.g., 1st organic result = rank_group 1). Use this for "who won" logic.
+- **`rank_absolute`**: Position on the full SERP page including all result types. Use this for display only (e.g., showing "Position 3" in the UI).
+- The `organic_winners` view is built on `rank_group = 1 AND result_type = 'organic'`, so JOINing it automatically uses the correct semantics.
+
+### Never Filter `brand_domains` by `domain_type` in Win/Loss Calculations
+A brand wins a keyword if ANY of its domains holds position 1, regardless of which domain_type that domain has. Never add `AND domain_type = '...'` when building the set of brand domain IDs for win/loss calculations.
+
+```sql
+-- CORRECT: all brand domains participate in win detection
+JOIN brand_domains bd ON bk.brand_name = bd.brand_name
+    AND bd.market_id = p_market_id
+JOIN organic_winners ow ON ow.keyword_id = bk.keyword_id
+    AND ow.domain_id = bd.domain_id
+
+-- WRONG: excludes domains that aren't the "brand" type
+JOIN brand_domains bd ON bk.brand_name = bd.brand_name
+    AND bd.market_id = p_market_id
+    AND bd.domain_type = v_brand_type_name  -- BUG: misses wins from other domain types
+```
+
 ### Performance: Large Market Queries
-For markets with 1M+ SERP results (e.g., bicycle_us has 1.6M rows):
+For markets with 1M+ SERP results (e.g., bicycle_us has 1.8M rows):
+
+**Use `organic_winners` for all winner lookups.** This is the single most impactful optimization — it reduced the slowest RPC from 5.5s to 2.9s.
+
+**Use direct JOINs, not `ANY(array)`:**
+```sql
+-- GOOD: direct JOIN — Postgres can use hash/merge joins
+JOIN brand_domains bd ON bk.brand_name = bd.brand_name AND bd.market_id = p_market_id
+JOIN organic_winners ow ON ow.keyword_id = bk.keyword_id AND ow.domain_id = bd.domain_id
+
+-- BAD: ANY(array) forces nested loop joins on large datasets
+JOIN organic_winners ow ON ow.keyword_id = bk.keyword_id
+    AND ow.domain_id = ANY(bdm.domain_ids)
+```
+
+**Use `ROW_NUMBER()` for top-N per group:** When you need "top 20 domains per domain_type", don't compute all winners then `LIMIT`. Instead:
+```sql
+SELECT *, ROW_NUMBER() OVER (PARTITION BY domain_type ORDER BY volume_captured DESC) as rn
+FROM all_winners
+-- Then: WHERE rn <= 20
+```
+
+**Additional rules:**
 - Use covering indexes for frequently joined columns: `CREATE INDEX ON serp_results (domain_id, keyword_id, rank_absolute)` enables index-only scans
-- Use direct JOINs to `brand_domains` instead of array-based `ANY()` filters on large result sets
-- Use window functions (`ROW_NUMBER() OVER (PARTITION BY ...)`) instead of N correlated subqueries
-- Vercel serverless has a 10-second timeout; test RPC performance against the largest market
+- Vercel serverless has a 10-second timeout; Supabase PostgREST has an 8-second statement timeout
+- Always benchmark new RPCs against `bicycle_us` (the largest market) using `EXPLAIN ANALYZE`
+- If an RPC takes >2s on `bicycle_us`, it will likely cause timeouts when called in parallel with other slow RPCs via `asyncio.gather()`
 
 ## Common Mistakes to Avoid
 
@@ -310,6 +379,26 @@ For markets with 1M+ SERP results (e.g., bicycle_us has 1.6M rows):
 ### 8. Manual RPC Unwrapping Instead of Helpers
 **Problem**: Using manual `if isinstance(data, list): data = data[0]` to unwrap RPC responses misses the function-name wrapper (`{"function_name": {...}}`), causing `data.get("field")` to return `None`.
 **Solution**: Always use `unwrap_rpc_single(result.data, "function_name")` or `unwrap_rpc_list(result.data)` from `backend/app/utils/rpc_helpers.py`.
+
+### 9. Using `rank_absolute` Instead of `rank_group` for Winner Detection
+**Problem**: `rank_absolute = 1` means "first result on the page" which could be a paid ad or featured snippet, not the top organic result. This pollutes win/loss calculations with non-organic results.
+**Solution**: Never use `rank_absolute = 1` for winner detection. Use `organic_winners` which is built on `rank_group = 1 AND result_type = 'organic'`. See "Winner Lookups" in RPC Design Rules.
+
+### 10. Using `ANY(array)` for Brand Domain Matching on Large Datasets
+**Problem**: `WHERE ow.domain_id = ANY(ARRAY_AGG(domain_id))` forces PostgreSQL into nested loop joins, causing 3-5 second query times on large markets.
+**Solution**: Use direct JOINs to `brand_domains` instead. This lets Postgres choose hash or merge joins. See "Performance: Large Market Queries" in RPC Design Rules.
+
+### 11. Filtering `brand_domains` by `domain_type` in Win/Loss Calculations
+**Problem**: Adding `AND domain_type = v_brand_type_name` when collecting brand domain IDs excludes legitimate brand domains of other types, causing missed wins and inflated loss counts.
+**Solution**: Always use ALL brand domains for win/loss detection. The `domain_type` field is for categorization/display, not for filtering win eligibility. See "Never Filter brand_domains by domain_type" in RPC Design Rules.
+
+### 12. Sequential RPC Calls in Dashboard Methods
+**Problem**: Dashboard methods that call 3-6 RPCs sequentially (with `await` on each) multiply total response time. A page calling 5 RPCs at 500ms each takes 2.5s sequentially.
+**Solution**: Use `asyncio.gather()` with `return_exceptions=True` to run independent RPCs in parallel. Total time becomes max(individual RPCs) instead of sum. Both `supabase_analytics.py` and `supabase_market_analytics.py` use this pattern.
+
+### 13. Slow RPCs Causing Silent Data Loss via Timeouts
+**Problem**: Supabase PostgREST has an 8-second statement timeout. When multiple slow RPCs run in parallel via `asyncio.gather()`, they can all hit the timeout simultaneously. Exception handlers silently return default empty objects (e.g., `MarketProtectionKPIs()` with all zeros), making it look like the data is empty rather than an error.
+**Solution**: Keep all RPCs under 2 seconds on the largest market. Use `organic_winners` materialized view, direct JOINs, and `ROW_NUMBER()` to optimize. Always benchmark with `EXPLAIN ANALYZE SELECT function_name('bicycle_us', ...)` before deploying.
 
 ## Multi-Market System
 
@@ -348,6 +437,34 @@ All tables have `market_id` for multi-tenant isolation:
 - `domains` — Unique domains from SERP
 - `serp_results` — Rankings per keyword
 - `brand_domains` — Brand-domain mapping with domain_type
+
+### Materialized View: `organic_winners`
+
+Pre-computed view of organic rank_group=1 winners (~100K rows instead of scanning 1.8M `serp_results`). All RPC functions JOIN this view instead of filtering `serp_results` directly for winner lookups.
+
+```sql
+-- One row per keyword: the organic rank_group=1 winner
+CREATE MATERIALIZED VIEW organic_winners AS
+SELECT sr.keyword_id, sr.domain_id, sr.rank_absolute, sr.url
+FROM serp_results sr
+WHERE sr.rank_group = 1 AND sr.result_type = 'organic';
+
+-- Indexes (already created):
+-- ix_organic_winners_keyword (UNIQUE) — "who won keyword X?"
+-- ix_organic_winners_domain — "which keywords did domain X win?"
+-- ix_organic_winners_keyword_domain — composite for JOIN patterns
+```
+
+**Columns available**: `keyword_id`, `domain_id`, `rank_absolute` (for display), `url` (for `get_brand_wins`).
+
+**Refresh requirement**: The view must be refreshed after any SERP data import. The import scripts (`run_full_import` and `import_data.py`) do this automatically. For manual refresh:
+```sql
+REFRESH MATERIALIZED VIEW CONCURRENTLY organic_winners;
+```
+
+**Rule**: Use `organic_winners` for "who won keyword X?" lookups. Keep `serp_results` for "what position does domain X have for keyword Y?" lookups (specific domain position queries, not winner queries).
+
+**Adding new RPCs**: Any new RPC that needs to determine keyword winners MUST use `organic_winners`, not `serp_results`. This is the most important performance and correctness rule for this codebase.
 
 ## Vercel Deployment
 

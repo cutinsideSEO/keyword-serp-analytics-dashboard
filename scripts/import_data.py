@@ -186,6 +186,7 @@ async def import_market(
             logger.info(f"  - {dt.display_name} ({dt.type_id})")
 
     # STEP 5: Import data
+    needs_view_refresh = False
     if csv_only:
         logger.info(f"Importing CSV only (fresh={fresh})...")
         async with get_db_context() as session:
@@ -193,14 +194,28 @@ async def import_market(
             if fresh:
                 await service.clear_market_data()
             stats = await service.import_csv(csv_path)
+        needs_view_refresh = fresh  # Only if data was cleared (SERP data affected)
     elif json_only:
         logger.info("Importing JSON only...")
         async with get_db_context() as session:
             service = DataImportService(session, market_id=market_id)
             stats = await service.import_serp_json(json_path)
+        needs_view_refresh = True
     else:
         logger.info(f"Running full import (fresh={fresh})...")
         stats = await run_full_import(csv_path, json_path, market_id=market_id, fresh=fresh)
+        # run_full_import already refreshes the view internally
+
+    # STEP 6: Refresh materialized view for fast winner lookups
+    if needs_view_refresh:
+        try:
+            from sqlalchemy import text
+            async with get_db_context() as session:
+                await session.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY organic_winners"))
+                await session.commit()
+            logger.info("Refreshed organic_winners materialized view")
+        except Exception as e:
+            logger.warning(f"Could not refresh organic_winners view (may not exist yet): {e}")
 
     logger.info(f"Import complete for {market_id}: {stats}")
     return stats

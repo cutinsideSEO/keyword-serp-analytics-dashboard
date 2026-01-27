@@ -4,6 +4,7 @@ Supabase Analytics Service for brand protection dashboard.
 Uses Supabase RPC functions instead of SQLAlchemy for serverless compatibility.
 """
 
+import asyncio
 import logging
 from typing import List, Optional, Tuple
 
@@ -56,6 +57,16 @@ class SupabaseAnalyticsService:
         """
         self.client = get_supabase_client()
         self.market_id = market_id or get_current_market_id()
+
+    async def _rpc(self, function_name: str, params: dict):
+        """Execute an RPC call in a thread for true async parallelism.
+
+        The Supabase Python client is synchronous, so wrapping in
+        asyncio.to_thread allows asyncio.gather to parallelize calls.
+        """
+        return await asyncio.to_thread(
+            lambda: self.client.rpc(function_name, params).execute()
+        )
 
     async def get_brand_protection_kpis(self, brand_name: str) -> BrandProtectionKPIs:
         """
@@ -305,6 +316,26 @@ class SupabaseAnalyticsService:
             logger.exception(f"Error getting modifier group stats: {e}")
             return []
 
+    async def _fetch_brand_domains(self, brand_name: str) -> list:
+        """Fetch brand domain names (async-wrapped table query)."""
+        try:
+            result = await asyncio.to_thread(
+                lambda: self.client.table("brand_domains")
+                .select("domain:domains(domain)")
+                .eq("market_id", self.market_id)
+                .eq("brand_name", brand_name)
+                .execute()
+            )
+            if result.data:
+                return [
+                    item["domain"]["domain"]
+                    for item in result.data
+                    if item.get("domain")
+                ]
+        except Exception as e:
+            logger.warning(f"Error fetching brand domains: {e}")
+        return []
+
     async def get_brand_protection_dashboard(
         self, brand_name: str
     ) -> BrandProtectionDashboard:
@@ -317,28 +348,25 @@ class SupabaseAnalyticsService:
         Returns:
             Complete dashboard data
         """
-        kpis = await self.get_brand_protection_kpis(brand_name)
-        wins, _ = await self.get_brand_wins(brand_name, limit=100)
-        losses, _ = await self.get_brand_losses(brand_name, limit=100)
-        competitors = await self.get_top_competitors(brand_name)
-        losses_by_category = await self.get_losses_by_category(brand_name)
+        # Run all RPCs in parallel
+        results = await asyncio.gather(
+            self.get_brand_protection_kpis(brand_name),
+            self.get_brand_wins(brand_name, limit=100),
+            self.get_brand_losses(brand_name, limit=100),
+            self.get_top_competitors(brand_name),
+            self.get_losses_by_category(brand_name),
+            self._fetch_brand_domains(brand_name),
+            return_exceptions=True,
+        )
 
-        # Fetch brand domains
-        brand_domains = []
-        try:
-            result = self.client.table("brand_domains")\
-                .select("domain:domains(domain)")\
-                .eq("market_id", self.market_id)\
-                .eq("brand_name", brand_name)\
-                .execute()
-            if result.data:
-                brand_domains = [
-                    item["domain"]["domain"]
-                    for item in result.data
-                    if item.get("domain")
-                ]
-        except Exception as e:
-            logger.warning(f"Error fetching brand domains: {e}")
+        kpis = results[0] if not isinstance(results[0], Exception) else BrandProtectionKPIs()
+        wins_result = results[1] if not isinstance(results[1], Exception) else ([], 0)
+        wins = wins_result[0] if isinstance(wins_result, tuple) else []
+        losses_result = results[2] if not isinstance(results[2], Exception) else ([], 0)
+        losses = losses_result[0] if isinstance(losses_result, tuple) else []
+        competitors = results[3] if not isinstance(results[3], Exception) else []
+        losses_by_category = results[4] if not isinstance(results[4], Exception) else []
+        brand_domains = results[5] if not isinstance(results[5], Exception) else []
 
         return BrandProtectionDashboard(
             brand_name=brand_name,
@@ -363,11 +391,22 @@ class SupabaseAnalyticsService:
             CategoryOpportunityDashboard with KPIs and modifier groups
         """
         try:
-            result = self.client.rpc(
-                "get_category_opportunities",
-                {"p_market_id": self.market_id, "p_brand_name": brand_name}
-            ).execute()
+            # Run main RPC and category stats in parallel
+            rpc_result, category_stats = await asyncio.gather(
+                self._rpc(
+                    "get_category_opportunities",
+                    {"p_market_id": self.market_id, "p_brand_name": brand_name}
+                ),
+                self.get_category_opportunity_stats(brand_name, "nonbranded"),
+                return_exceptions=True,
+            )
 
+            if isinstance(rpc_result, Exception):
+                raise rpc_result
+            if isinstance(category_stats, Exception):
+                category_stats = []
+
+            result = rpc_result
             data = unwrap_rpc_single(result.data, "get_category_opportunities")
             if data:
                 kpis = CategoryOpportunityKPIs(
@@ -407,7 +446,6 @@ class SupabaseAnalyticsService:
                     )
                     for mg in data.get("modifier_groups", []) or []
                 ]
-                category_stats = await self.get_category_opportunity_stats(brand_name, "nonbranded")
                 return CategoryOpportunityDashboard(
                     brand_name=brand_name,
                     brand_domains=data.get("brand_domains") or [],
@@ -445,12 +483,22 @@ class SupabaseAnalyticsService:
             CompetitorBrandedDashboard
         """
         try:
-            result = self.client.rpc(
-                "get_competitor_branded_opportunities",
-                {"p_market_id": self.market_id, "p_brand_name": brand_name}
-            ).execute()
+            rpc_result, category_stats = await asyncio.gather(
+                self._rpc(
+                    "get_competitor_branded_opportunities",
+                    {"p_market_id": self.market_id, "p_brand_name": brand_name}
+                ),
+                self.get_category_opportunity_stats(brand_name, "competitor_branded"),
+                return_exceptions=True,
+            )
 
-            data = unwrap_rpc_single(result.data, "get_competitor_branded_opportunities")
+            if isinstance(rpc_result, Exception):
+                raise rpc_result
+            if isinstance(category_stats, Exception):
+                logger.warning(f"Error fetching competitor branded category stats: {category_stats}")
+                category_stats = []
+
+            data = unwrap_rpc_single(rpc_result.data, "get_competitor_branded_opportunities")
             if data:
                 kpis = CategoryOpportunityKPIs(
                     total_nonbranded_keywords=data.get("total_competitor_keywords", 0),
@@ -489,7 +537,6 @@ class SupabaseAnalyticsService:
                     )
                     for mg in data.get("modifier_groups", []) or []
                 ]
-                category_stats = await self.get_category_opportunity_stats(brand_name, "competitor_branded")
                 return CompetitorBrandedDashboard(
                     brand_name=brand_name,
                     brand_domains=data.get("brand_domains") or [],
@@ -997,37 +1044,25 @@ class SupabaseAnalyticsService:
         Returns:
             HomeDashboard with KPIs
         """
-        # Get brand protection KPIs
-        kpis = await self.get_brand_protection_kpis(brand_name)
+        # Run all independent queries in parallel
+        results = await asyncio.gather(
+            self.get_brand_protection_kpis(brand_name),
+            self.get_top_competitors(brand_name, limit=1),
+            self._fetch_brand_domains(brand_name),
+            return_exceptions=True,
+        )
+
+        kpis = results[0] if not isinstance(results[0], Exception) else BrandProtectionKPIs()
+        competitors = results[1] if not isinstance(results[1], Exception) else []
+        brand_domains = results[2] if not isinstance(results[2], Exception) else []
 
         # Calculate health score
         health_score, health_grade = self._calculate_health_score(
             kpis.win_rate_keywords, kpis.win_rate_volume
         )
 
-        # Get top threat
-        competitors = await self.get_top_competitors(brand_name, limit=1)
         top_threat = competitors[0] if competitors else None
-
-        # Fetch brand domains
-        brand_domains = []
-        has_domain_mapping = True
-        try:
-            result = self.client.table("brand_domains")\
-                .select("domain:domains(domain)")\
-                .eq("market_id", self.market_id)\
-                .eq("brand_name", brand_name)\
-                .execute()
-            if result.data:
-                brand_domains = [
-                    item["domain"]["domain"]
-                    for item in result.data
-                    if item.get("domain")
-                ]
-            has_domain_mapping = len(brand_domains) > 0
-        except Exception as e:
-            logger.warning(f"Error fetching brand domains: {e}")
-            has_domain_mapping = False
+        has_domain_mapping = len(brand_domains) > 0
 
         home_kpis = HomeDashboardKPIs(
             health_score=health_score,

@@ -5,6 +5,7 @@ Provides endpoints for market-wide analytics dashboard.
 Uses Supabase RPC for serverless compatibility.
 """
 
+import asyncio
 from typing import List, Optional
 
 from fastapi import APIRouter, Query
@@ -115,11 +116,19 @@ async def get_influential_voices(
     non_brand_types = await service.get_non_brand_type_names()
     voice_types = non_brand_types[1:] if len(non_brand_types) > 1 else []
 
-    # Fetch and combine all voice types
+    # Fetch all voice types in parallel
+    if not voice_types:
+        return []
+
+    voice_results = await asyncio.gather(
+        *[service.get_domain_visibility_by_type(vt, limit) for vt in voice_types],
+        return_exceptions=True,
+    )
+
     combined = []
-    for voice_type in voice_types:
-        voices = await service.get_domain_visibility_by_type(voice_type, limit)
-        combined.extend(voices)
+    for result in voice_results:
+        if not isinstance(result, Exception):
+            combined.extend(result)
 
     # Sort by visibility and limit
     combined.sort(key=lambda x: x.visibility_score, reverse=True)
