@@ -415,12 +415,29 @@ class BrandMapperService:
                     {
                         "domain": domain_info["domain"],
                         "brand_name": brand_name,
-                        "is_primary": is_primary and len(mappings) == 0,
+                        "is_primary": is_primary,
                         "domain_type": brand_type_name,
                         "confidence": confidence,
                         "reason": "Brand name contained in domain",
                     }
                 )
+
+        # Ensure exactly one primary domain per brand:
+        # If multiple domains matched as primary, keep only the first (shortest domain = most likely main site)
+        # If none matched as primary, set the highest-confidence one as primary
+        primary_count = sum(1 for m in mappings if m["is_primary"])
+        if primary_count > 1:
+            found_first = False
+            for m in sorted(mappings, key=lambda x: len(x["domain"])):
+                if m["is_primary"]:
+                    if found_first:
+                        m["is_primary"] = False
+                    else:
+                        found_first = True
+        elif primary_count == 0 and mappings:
+            # Pick the highest-confidence, shortest-domain mapping as primary
+            best = sorted(mappings, key=lambda x: (-x["confidence"], len(x["domain"])))[0]
+            best["is_primary"] = True
 
         return mappings
 

@@ -172,10 +172,7 @@ export interface ModifierGroupStats {
   keywords_losing: number;
   volume_winning: number;
   volume_losing: number;
-  avg_brand_position: number | null;
   win_rate: number;
-  top_tags: Record<string, number>;
-  example_keywords: string[];
 }
 
 export interface BrandProtectionDashboard {
@@ -298,10 +295,6 @@ export interface ShareOfSearchItem {
   total_volume: number;
   keyword_count: number;
   share_percentage: number;
-  primary_domain?: string | null;
-  domain_visibility?: number | null;
-  domain_win_count?: number | null;
-  domain_avg_position?: number | null;
 }
 
 export interface DomainVisibilityItem {

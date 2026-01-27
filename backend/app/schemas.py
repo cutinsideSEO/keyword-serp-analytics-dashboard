@@ -348,10 +348,7 @@ class ModifierGroupStats(BaseSchema):
     keywords_losing: int = 0
     volume_winning: int = 0
     volume_losing: int = 0
-    avg_brand_position: Optional[float] = None  # Average position where brand ranks
     win_rate: float = 0.0
-    top_tags: Dict[str, int] = Field(default_factory=dict)  # Top tag values and their counts
-    example_keywords: List[str] = Field(default_factory=list)  # Up to 5 example keywords
 
 
 class BrandProtectionDashboard(BaseSchema):
@@ -533,11 +530,6 @@ class ShareOfSearchItem(BaseSchema):
     total_volume: int
     keyword_count: int
     share_percentage: float
-    # Domain performance metrics for this brand
-    primary_domain: Optional[str] = None
-    domain_visibility: Optional[float] = None
-    domain_win_count: Optional[int] = None
-    domain_avg_position: Optional[float] = None
 
 
 class DomainVisibilityItem(BaseSchema):

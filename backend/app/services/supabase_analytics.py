@@ -292,8 +292,6 @@ class SupabaseAnalyticsService:
                     volume_winning=item.get("volume_winning", 0),
                     volume_losing=item.get("volume_losing", 0),
                     win_rate=item.get("win_rate", 0),
-                    avg_position=item.get("avg_position"),
-                    top_tags=item.get("top_tags", []),
                 )
                 for item in items
             ]
