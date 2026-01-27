@@ -5,7 +5,8 @@
  * Replaces both the old ModifierGroupDrawer and MarketModifierDrawer.
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Loader2, Tag, Users, FileText } from 'lucide-react';
 import { Drawer } from '../common/Drawer';
 import { HeroStats } from './drawer-parts/HeroStats';
@@ -51,40 +52,27 @@ export function ModifierGroupDrawer({
   context,
   keywordType = 'nonbranded',
 }: ModifierGroupDrawerProps) {
-  const [breakdown, setBreakdown] = useState<BreakdownData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'values' | 'competitors' | 'keywords'>('values');
 
-  const fetchData = () => {
-    setLoading(true);
-    setError(null);
-    setActiveTab('values');
+  const needsBrand = context !== 'market';
+  const queryEnabled = isOpen && !!modifierGroup && (!needsBrand || !!brandName);
 
-    let promise: Promise<BreakdownData>;
-    if (context === 'market') {
-      promise = getModifierGroupMarketBreakdown(modifierGroup, 15);
-    } else if (context === 'opportunity') {
-      promise = getModifierGroupOpportunityBreakdown(brandName || '', modifierGroup, keywordType);
-    } else {
-      promise = getModifierGroupProtectionBreakdown(brandName || '', modifierGroup, 10);
-    }
-
-    promise
-      .then(setBreakdown)
-      .catch((err) => setError(err.message || 'Failed to load data'))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    if (isOpen && modifierGroup) {
-      const needsBrand = context !== 'market';
-      if (!needsBrand || brandName) {
-        fetchData();
+  const { data: breakdown = null, isLoading: loading, error: queryError, refetch } = useQuery<BreakdownData>({
+    queryKey: ['modifier-group-breakdown', context, modifierGroup, brandName, keywordType],
+    queryFn: () => {
+      if (context === 'market') {
+        return getModifierGroupMarketBreakdown(modifierGroup, 15);
+      } else if (context === 'opportunity') {
+        return getModifierGroupOpportunityBreakdown(brandName || '', modifierGroup, keywordType);
+      } else {
+        return getModifierGroupProtectionBreakdown(brandName || '', modifierGroup, 10);
       }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, modifierGroup, brandName, context, keywordType]);
+    },
+    enabled: queryEnabled,
+  });
+
+  const error = queryError ? queryError.message : null;
+  const fetchData = () => refetch();
 
   const subtitleMap: Record<DrawerContext, string> = {
     market: 'Market Overview',

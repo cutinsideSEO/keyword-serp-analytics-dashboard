@@ -4,11 +4,15 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Card, Text, TextInput, Button, Badge, Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@tremor/react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Search, Plus, Trash2, Star, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
 import { useMarketConfig } from '../../contexts/MarketConfigContext';
 import { getBrands, getBrandDetails, updateBrandDomains } from '../../api/endpoints';
-import type { Brand, BrandWithDomains, BrandDomain } from '../../types';
+import type { Brand, BrandWithDomains } from '../../types';
 
 export function BrandDomainManager() {
   const { getStyles, getIcon, marketConfig } = useMarketConfig();
@@ -43,7 +47,7 @@ export function BrandDomainManager() {
       setLoading(true);
       setError(null);
       const data = await getBrands();
-      setBrands(data.brands || []);
+      setBrands(data.items || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load brands');
     } finally {
@@ -151,204 +155,220 @@ export function BrandDomainManager() {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Brand List */}
       <Card className="lg:col-span-1">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">Select Brand</h3>
-          <Button
-            size="xs"
-            variant="secondary"
-            icon={RefreshCw}
-            onClick={loadBrands}
-            loading={loading}
-          >
-            Refresh
-          </Button>
-        </div>
-
-        <TextInput
-          placeholder="Search brands..."
-          icon={Search}
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="mb-4"
-        />
-
-        {error && (
-          <div className="flex items-center gap-2 text-red-600 text-sm mb-4">
-            <AlertCircle className="w-4 h-4" />
-            {error}
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">Select Brand</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadBrands}
+              disabled={loading}
+            >
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+              ) : (
+                <RefreshCw className="w-4 h-4 mr-1" />
+              )}
+              Refresh
+            </Button>
           </div>
-        )}
 
-        <div className="space-y-1 max-h-[400px] overflow-y-auto">
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Search brands..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 text-red-600 text-sm mb-4">
+              <AlertCircle className="w-4 h-4" />
+              {error}
             </div>
-          ) : filteredBrands.length === 0 ? (
-            <Text className="text-gray-500 text-center py-4">No brands found</Text>
-          ) : (
-            filteredBrands.slice(0, 50).map((brand) => (
-              <button
-                key={brand.brand_name}
-                onClick={() => setSelectedBrand(brand.brand_name)}
-                className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                  selectedBrand === brand.brand_name
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'hover:bg-gray-100'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium truncate">{brand.brand_name}</span>
-                  <span className="text-xs text-gray-500">{brand.keyword_count} kw</span>
-                </div>
-              </button>
-            ))
           )}
-          {filteredBrands.length > 50 && (
-            <Text className="text-gray-500 text-center text-sm py-2">
-              +{filteredBrands.length - 50} more brands
-            </Text>
-          )}
-        </div>
+
+          <div className="space-y-1 max-h-[400px] overflow-y-auto">
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            ) : filteredBrands.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No brands found</p>
+            ) : (
+              filteredBrands.slice(0, 50).map((brand) => (
+                <button
+                  key={brand.brand_name}
+                  onClick={() => setSelectedBrand(brand.brand_name)}
+                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
+                    selectedBrand === brand.brand_name
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium truncate">{brand.brand_name}</span>
+                    <span className="text-xs text-gray-500">{brand.keyword_count} kw</span>
+                  </div>
+                </button>
+              ))
+            )}
+            {filteredBrands.length > 50 && (
+              <p className="text-sm text-muted-foreground text-center py-2">
+                +{filteredBrands.length - 50} more brands
+              </p>
+            )}
+          </div>
+        </CardContent>
       </Card>
 
       {/* Domain Details */}
       <Card className="lg:col-span-2">
-        {!selectedBrand ? (
-          <div className="flex flex-col items-center justify-center py-12 text-gray-500">
-            <Search className="w-12 h-12 mb-4 text-gray-300" />
-            <Text>Select a brand to view its domain mappings</Text>
-          </div>
-        ) : detailsLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-          </div>
-        ) : brandDetails ? (
-          <div className="space-y-6">
-            {/* Brand Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-bold">{brandDetails.brand_name}</h3>
-                <Text className="text-gray-500">
-                  {brandDetails.keyword_count} keywords · {brandDetails.total_volume?.toLocaleString()} volume
-                </Text>
-              </div>
-              <Badge color="blue" size="lg">
-                {brandDetails.domains?.length || 0} domains
-              </Badge>
+        <CardContent className="pt-6">
+          {!selectedBrand ? (
+            <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+              <Search className="w-12 h-12 mb-4 text-gray-300" />
+              <p className="text-sm text-muted-foreground">Select a brand to view its domain mappings</p>
             </div>
+          ) : detailsLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+            </div>
+          ) : brandDetails ? (
+            <div className="space-y-6">
+              {/* Brand Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">{brandDetails.brand_name}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {brandDetails.keyword_count} keywords · {brandDetails.total_volume?.toLocaleString()} volume
+                  </p>
+                </div>
+                <Badge variant="secondary" className="bg-blue-50 text-blue-600 font-medium">
+                  {brandDetails.domains?.length || 0} domains
+                </Badge>
+              </div>
 
-            {/* Current Domains */}
-            {brandDetails.domains && brandDetails.domains.length > 0 ? (
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableHeaderCell>Domain</TableHeaderCell>
-                    <TableHeaderCell>Type</TableHeaderCell>
-                    <TableHeaderCell>Primary</TableHeaderCell>
-                    <TableHeaderCell>Actions</TableHeaderCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {brandDetails.domains.map((domain) => {
-                    const styles = getStyles(domain.domain_type || 'Unknown');
-                    const Icon = getIcon(domain.domain_type || 'Unknown');
+              {/* Current Domains */}
+              {brandDetails.domains && brandDetails.domains.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Domain</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Primary</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {brandDetails.domains.map((domain) => {
+                      const styles = getStyles(domain.domain_type || 'Unknown');
+                      const Icon = getIcon(domain.domain_type || 'Unknown');
 
-                    return (
-                      <TableRow key={domain.domain}>
-                        <TableCell>
-                          <span className="font-medium">{domain.domain}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${styles.bgColor} ${styles.textColor}`}>
-                            <Icon className="w-3 h-3" />
-                            {domain.domain_type || 'Unknown'}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {domain.is_primary ? (
-                            <Badge color="yellow" icon={Star}>Primary</Badge>
-                          ) : (
+                      return (
+                        <TableRow key={domain.domain}>
+                          <TableCell>
+                            <span className="font-medium">{domain.domain}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${styles.bgColor} ${styles.textColor}`}>
+                              <Icon className="w-3 h-3" />
+                              {domain.domain_type || 'Unknown'}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {domain.is_primary ? (
+                              <Badge variant="secondary" className="bg-yellow-50 text-yellow-600 font-medium">
+                                <Star className="w-3 h-3 mr-1" />
+                                Primary
+                              </Badge>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleSetPrimary(domain.domain)}
+                                disabled={saving}
+                              >
+                                Set Primary
+                              </Button>
+                            )}
+                          </TableCell>
+                          <TableCell>
                             <Button
-                              size="xs"
-                              variant="secondary"
-                              onClick={() => handleSetPrimary(domain.domain)}
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleRemoveDomain(domain.domain)}
                               disabled={saving}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             >
-                              Set Primary
+                              <Trash2 className="w-4 h-4 mr-1" />
+                              Remove
                             </Button>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            size="xs"
-                            variant="secondary"
-                            color="red"
-                            icon={Trash2}
-                            onClick={() => handleRemoveDomain(domain.domain)}
-                            disabled={saving}
-                          >
-                            Remove
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            ) : (
-              <div className="text-center py-8 bg-gray-50 rounded-lg">
-                <Text className="text-gray-500">No domains mapped to this brand</Text>
-              </div>
-            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-8 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-muted-foreground">No domains mapped to this brand</p>
+                </div>
+              )}
 
-            {/* Add New Domain Form */}
-            <div className="border-t pt-6">
-              <h4 className="font-semibold mb-4">Add New Domain</h4>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <TextInput
-                  placeholder="Domain (e.g., example.com)"
-                  value={newDomain}
-                  onChange={(e) => setNewDomain(e.target.value)}
-                />
-                <select
-                  value={newDomainType}
-                  onChange={(e) => setNewDomainType(e.target.value)}
-                  className="tremor-TextInput-root rounded-md border border-gray-300 px-3 py-2"
-                >
-                  <option value="">Select Type</option>
-                  {marketConfig?.domain_types?.map((dt) => (
-                    <option key={dt.id} value={dt.display_name}>
-                      {dt.display_name}
-                    </option>
-                  ))}
-                </select>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={newDomainPrimary}
-                    onChange={(e) => setNewDomainPrimary(e.target.checked)}
-                    className="rounded"
+              {/* Add New Domain Form */}
+              <div className="border-t pt-6">
+                <h4 className="font-semibold mb-4">Add New Domain</h4>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Input
+                    placeholder="Domain (e.g., example.com)"
+                    value={newDomain}
+                    onChange={(e) => setNewDomain(e.target.value)}
                   />
-                  <span className="text-sm">Primary Domain</span>
-                </label>
-                <Button
-                  icon={Plus}
-                  onClick={handleAddDomain}
-                  disabled={!newDomain.trim() || !newDomainType || saving}
-                  loading={saving}
-                >
-                  Add Domain
-                </Button>
+                  <select
+                    value={newDomainType}
+                    onChange={(e) => setNewDomainType(e.target.value)}
+                    className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  >
+                    <option value="">Select Type</option>
+                    {marketConfig?.domain_types?.map((dt) => (
+                      <option key={dt.id} value={dt.display_name}>
+                        {dt.display_name}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={newDomainPrimary}
+                      onChange={(e) => setNewDomainPrimary(e.target.checked)}
+                      className="rounded"
+                    />
+                    <span className="text-sm">Primary Domain</span>
+                  </label>
+                  <Button
+                    onClick={handleAddDomain}
+                    disabled={!newDomain.trim() || !newDomainType || saving}
+                  >
+                    {saving ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                    ) : (
+                      <Plus className="w-4 h-4 mr-1" />
+                    )}
+                    Add Domain
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="text-center py-12 text-gray-500">
-            <AlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-            <Text>Failed to load brand details</Text>
-          </div>
-        )}
+          ) : (
+            <div className="text-center py-12 text-gray-500">
+              <AlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+              <p className="text-sm text-muted-foreground">Failed to load brand details</p>
+            </div>
+          )}
+        </CardContent>
       </Card>
     </div>
   );

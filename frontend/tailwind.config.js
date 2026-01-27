@@ -1,43 +1,60 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
+    darkMode: ["class"],
+    content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
-    "./node_modules/@tremor/**/*.{js,ts,jsx,tsx}",
-  ],
-  safelist: [
-    // Safelist fill colors for Tremor charts
-    'fill-blue-500',
-    'fill-orange-500',
-    'fill-purple-500',
-    'fill-emerald-500',
-    'fill-amber-500',
-    'fill-teal-500',
-    'fill-gray-500',
-    'fill-rose-500',
-    'fill-cyan-500',
-    'fill-indigo-500',
-    // Stroke colors for Tremor charts
-    'stroke-blue-500',
-    'stroke-orange-500',
-    'stroke-purple-500',
-    'stroke-emerald-500',
-    'stroke-amber-500',
-    'stroke-teal-500',
-    'stroke-gray-500',
-    'stroke-rose-500',
-    // Dark mode variants
-    'dark:fill-blue-500',
-    'dark:fill-orange-500',
-    'dark:fill-purple-500',
-    'dark:fill-emerald-500',
-    'dark:fill-amber-500',
-    'dark:fill-teal-500',
-    'dark:fill-gray-500',
-    'dark:fill-rose-500',
   ],
   theme: {
-    extend: {},
+  	extend: {
+  		borderRadius: {
+  			lg: 'var(--radius)',
+  			md: 'calc(var(--radius) - 2px)',
+  			sm: 'calc(var(--radius) - 4px)'
+  		},
+  		colors: {
+  			background: 'hsl(var(--background))',
+  			foreground: 'hsl(var(--foreground))',
+  			card: {
+  				DEFAULT: 'hsl(var(--card))',
+  				foreground: 'hsl(var(--card-foreground))'
+  			},
+  			popover: {
+  				DEFAULT: 'hsl(var(--popover))',
+  				foreground: 'hsl(var(--popover-foreground))'
+  			},
+  			primary: {
+  				DEFAULT: 'hsl(var(--primary))',
+  				foreground: 'hsl(var(--primary-foreground))'
+  			},
+  			secondary: {
+  				DEFAULT: 'hsl(var(--secondary))',
+  				foreground: 'hsl(var(--secondary-foreground))'
+  			},
+  			muted: {
+  				DEFAULT: 'hsl(var(--muted))',
+  				foreground: 'hsl(var(--muted-foreground))'
+  			},
+  			accent: {
+  				DEFAULT: 'hsl(var(--accent))',
+  				foreground: 'hsl(var(--accent-foreground))'
+  			},
+  			destructive: {
+  				DEFAULT: 'hsl(var(--destructive))',
+  				foreground: 'hsl(var(--destructive-foreground))'
+  			},
+  			border: 'hsl(var(--border))',
+  			input: 'hsl(var(--input))',
+  			ring: 'hsl(var(--ring))',
+  			chart: {
+  				'1': 'hsl(var(--chart-1))',
+  				'2': 'hsl(var(--chart-2))',
+  				'3': 'hsl(var(--chart-3))',
+  				'4': 'hsl(var(--chart-4))',
+  				'5': 'hsl(var(--chart-5))'
+  			}
+  		}
+  	}
   },
-  plugins: [],
+  plugins: [require("tailwindcss-animate")],
 }

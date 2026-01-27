@@ -1,10 +1,12 @@
 /**
- * Modern competitor bar chart with gradient styling.
+ * Competitor bar chart using Recharts + shadcn ChartContainer.
  * Uses dynamic domain types from market configuration.
  */
 
 import { motion } from 'framer-motion';
-import { BarChart } from '@tremor/react';
+import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import type { ChartConfig } from '@/components/ui/chart';
 import { TrendingDown, ExternalLink } from 'lucide-react';
 import type { CompetitorStats } from '../../types';
 import { formatCompactNumber, formatNumber } from '../../utils/formatters';
@@ -17,7 +19,7 @@ interface CompetitorChartProps {
 }
 
 export function CompetitorChart({ competitors, brandName }: CompetitorChartProps) {
-  const { getTremorColor } = useMarketConfig();
+  const { getHexColor } = useMarketConfig();
   // Get unique domain types present in the data
   const domainTypes = Array.from(
     new Set(competitors.map((comp) => comp.domain_type || 'Unknown'))
@@ -36,8 +38,14 @@ export function CompetitorChart({ competitors, brandName }: CompetitorChartProps
     return dataPoint;
   });
 
-  // Map domain types to their colors from config
-  const chartColors = domainTypes.map((type) => getTremorColor(type));
+  // Build chart config from dynamic domain types
+  const chartConfig: ChartConfig = {};
+  domainTypes.forEach((type) => {
+    chartConfig[type] = {
+      label: type,
+      color: getHexColor(type),
+    };
+  });
 
   const totalVolumeStolen = competitors.reduce(
     (sum, comp) => sum + comp.wins_volume,
@@ -46,15 +54,15 @@ export function CompetitorChart({ competitors, brandName }: CompetitorChartProps
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       transition={{ duration: 0.5, delay: 0.4 }}
     >
-      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-md hover:shadow-xl transition-all duration-300">
+      <div className="bg-white rounded-xl p-6 border border-gray-200 hover:border-gray-300 transition-all duration-300">
         {/* Header */}
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h3 className="text-xl font-bold text-gray-900 mb-1 flex items-center">
+            <h3 className="text-lg font-semibold text-gray-900 mb-1 flex items-center">
               Competitor Analysis
               <InfoTooltip
                 title="Competitor Analysis"
@@ -70,7 +78,7 @@ export function CompetitorChart({ competitors, brandName }: CompetitorChartProps
             <TrendingDown className="w-4 h-4 text-red-600" />
             <div className="text-right">
               <p className="text-xs font-medium text-red-600">Total at Risk</p>
-              <p className="text-lg font-bold text-red-700">
+              <p className="text-2xl font-semibold text-red-700">
                 {formatCompactNumber(totalVolumeStolen)}
               </p>
             </div>
@@ -78,18 +86,22 @@ export function CompetitorChart({ competitors, brandName }: CompetitorChartProps
         </div>
 
         {/* Chart */}
-        <BarChart
-          className="mt-4 h-72"
-          data={chartData}
-          index="domain"
-          categories={domainTypes}
-          colors={chartColors}
-          valueFormatter={(value) => formatCompactNumber(value)}
-          yAxisWidth={80}
-          showAnimation
-          showGridLines={true}
-          showLegend={domainTypes.length > 1}
-        />
+        <ChartContainer config={chartConfig} className="h-72 w-full mt-4">
+          <RechartsBarChart data={chartData} layout="vertical" margin={{ left: 10, right: 20, top: 5, bottom: 5 }}>
+            <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+            <XAxis type="number" tickFormatter={(v) => formatCompactNumber(v)} />
+            <YAxis dataKey="domain" type="category" width={80} tick={{ fontSize: 12 }} />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            {domainTypes.map((type) => (
+              <Bar
+                key={type}
+                dataKey={type}
+                fill={`var(--color-${type})`}
+                radius={[0, 4, 4, 0]}
+              />
+            ))}
+          </RechartsBarChart>
+        </ChartContainer>
 
         {/* Top Competitors List */}
         <div className="mt-6 space-y-2">
@@ -99,21 +111,20 @@ export function CompetitorChart({ competitors, brandName }: CompetitorChartProps
           {competitors.slice(0, 5).map((comp, index) => (
             <motion.div
               key={comp.domain}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               transition={{ delay: 0.5 + index * 0.1 }}
               className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors group"
             >
               <div className="flex items-center gap-3 flex-1">
                 <div
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-white flex-shrink-0"
-                  style={{
-                    background: `linear-gradient(135deg, ${
-                      index === 0 ? '#EF4444' : index === 1 ? '#F59E0B' : '#64748B'
-                    } 0%, ${
-                      index === 0 ? '#DC2626' : index === 1 ? '#D97706' : '#475569'
-                    } 100%)`,
-                  }}
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold flex-shrink-0 ${
+                    index === 0
+                      ? 'bg-red-50 text-red-600'
+                      : index === 1
+                      ? 'bg-amber-50 text-amber-600'
+                      : 'bg-gray-50 text-gray-600'
+                  }`}
                 >
                   {index + 1}
                 </div>
@@ -128,7 +139,7 @@ export function CompetitorChart({ competitors, brandName }: CompetitorChartProps
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right">
-                  <p className="font-bold text-red-600">
+                  <p className="font-semibold text-red-600">
                     {formatNumber(comp.wins_volume)}
                   </p>
                   <p className="text-xs text-gray-500">volume</p>

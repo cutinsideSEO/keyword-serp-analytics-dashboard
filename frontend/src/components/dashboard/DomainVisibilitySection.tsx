@@ -4,7 +4,6 @@
  */
 
 import { motion } from 'framer-motion';
-import { Card, Title, Text } from '@tremor/react';
 import { TrendingUp, Award } from 'lucide-react';
 import type { DomainVisibilityItem } from '../../types';
 import { useMarketConfig } from '../../contexts/MarketConfigContext';
@@ -40,12 +39,12 @@ export function DomainVisibilitySection({
   const HeaderIcon = getIcon(primaryType);
 
   return (
-    <Card className="h-full">
+    <div className="rounded-xl border border-gray-200 p-6 h-full">
       <div className="flex items-center gap-2 mb-2">
         <HeaderIcon className={`h-5 w-5 ${primaryStyles.textColor}`} />
-        <Title>{title}</Title>
+        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
       </div>
-      <Text className="mb-4 text-gray-600">{subtitle}</Text>
+      <p className="text-sm text-muted-foreground mb-4">{subtitle}</p>
 
       <div className="space-y-3">
         {topDomains.map((domain, idx) => {
@@ -56,18 +55,18 @@ export function DomainVisibilitySection({
           return (
             <motion.div
               key={domain.domain}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: idx * 0.08, duration: 0.3 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: idx * 0.03, duration: 0.3 }}
               className={`group relative ${
-                isTopPlayer ? 'bg-gradient-to-r from-gray-50 to-transparent' : ''
+                isTopPlayer ? 'bg-gray-50' : ''
               }`}
             >
               <div className="flex items-center justify-between py-3 px-3 rounded-lg hover:bg-gray-50 transition-all border-b border-gray-100 last:border-0">
                 <div className="flex items-center space-x-3 flex-1 min-w-0">
                   {/* Rank Badge with dynamic colors */}
                   <div
-                    className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full ${styles.bgColor} ${styles.textColor} font-bold text-sm transition-transform group-hover:scale-110`}
+                    className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full ${styles.bgColor} ${styles.textColor} font-bold text-sm`}
                   >
                     {idx + 1}
                   </div>
@@ -75,7 +74,7 @@ export function DomainVisibilitySection({
                   {/* Domain Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <div className={`font-semibold truncate group-hover:${styles.textColor} transition-colors`}>
+                      <div className="font-semibold truncate transition-colors">
                         {domain.domain}
                       </div>
                       {isTopPlayer && (
@@ -133,23 +132,23 @@ export function DomainVisibilitySection({
         >
           <div className="text-center">
             <div className="text-xs text-gray-500 mb-1">Total Domains</div>
-            <div className="font-bold text-gray-900">{filteredData.length}</div>
+            <div className="font-semibold text-gray-900">{filteredData.length}</div>
           </div>
           <div className="text-center">
             <div className="text-xs text-gray-500 mb-1">Total Wins</div>
-            <div className="font-bold text-gray-900">
+            <div className="font-semibold text-gray-900">
               {topDomains.reduce((sum, d) => sum + d.win_count, 0).toLocaleString()}
             </div>
           </div>
           <div className="text-center">
             <div className="text-xs text-gray-500 mb-1">Avg Position</div>
-            <div className="font-bold text-gray-900">
+            <div className="font-semibold text-gray-900">
               #{(topDomains.reduce((sum, d) => sum + (d.avg_position || 0), 0) / topDomains.length).toFixed(1)}
             </div>
           </div>
         </motion.div>
       )}
-    </Card>
+    </div>
   );
 }
 

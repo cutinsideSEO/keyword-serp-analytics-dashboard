@@ -3,8 +3,8 @@
  * Redesigned with cleaner layout and drawer-based drill-downs.
  */
 
-import { useEffect, useState, useMemo } from 'react';
-import { Grid } from '@tremor/react';
+import { useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BarChart3, TrendingUp, Layers, Tag, Users } from 'lucide-react';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorDisplay } from '../components/common/ErrorBoundary';
@@ -20,10 +20,15 @@ import { useMarketConfig } from '../contexts/MarketConfigContext';
 import type { MarketOverviewDashboard, CategoryMarketStats, ModifierGroupMarketStats } from '../types';
 
 export function MarketOverview() {
-  const [data, setData] = useState<MarketOverviewDashboard | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const { marketConfig, currentMarketId } = useMarketConfig();
+  const queryClient = useQueryClient();
+
+  const { data, isLoading: loading, error: queryError } = useQuery<MarketOverviewDashboard>({
+    queryKey: ['market-overview', currentMarketId],
+    queryFn: getMarketOverviewDashboard,
+  });
+
+  const error = queryError ? queryError.message : null;
 
   // Drawer state
   const [categoryDrawer, setCategoryDrawer] = useState<{
@@ -59,22 +64,7 @@ export function MarketOverview() {
       .sort((a, b) => b.visibility_score - a.visibility_score);
   }, [data]);
 
-  useEffect(() => {
-    loadDashboard();
-  }, [currentMarketId]);
-
-  const loadDashboard = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const dashboardData = await getMarketOverviewDashboard();
-      setData(dashboardData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load dashboard');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const refetch = () => queryClient.invalidateQueries({ queryKey: ['market-overview', currentMarketId] });
 
   const formatVolume = (vol: number) => {
     if (vol >= 1000000) return `${(vol / 1000000).toFixed(1)}M`;
@@ -156,10 +146,10 @@ export function MarketOverview() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-teal-500 mb-1">
+          <h1 className="text-3xl font-semibold text-gray-900 mb-1">
             Analyze
           </h1>
-          <p className="text-gray-600">Loading market intelligence...</p>
+          <p className="text-sm text-muted-foreground">Loading market intelligence...</p>
         </div>
         <LoadingSpinner size="lg" message="Loading market data..." />
       </div>
@@ -170,12 +160,12 @@ export function MarketOverview() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-teal-500 mb-1">
+          <h1 className="text-3xl font-semibold text-gray-900 mb-1">
             Analyze
           </h1>
-          <p className="text-gray-600">Market intelligence and analytics</p>
+          <p className="text-sm text-muted-foreground">Market intelligence and analytics</p>
         </div>
-        <ErrorDisplay message={error} onRetry={loadDashboard} />
+        <ErrorDisplay error={queryError} message={error ?? undefined} onRetry={refetch} />
       </div>
     );
   }
@@ -187,19 +177,21 @@ export function MarketOverview() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-teal-500 mb-1">
+          <h1 className="text-3xl font-semibold text-gray-900 mb-1">
             Analyze
           </h1>
-          <p className="text-gray-600">
+          <p className="text-sm text-muted-foreground">
             Market intelligence across {data.protection_kpis.total_brands} brands
           </p>
         </div>
-        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl shadow-lg border border-emerald-200 p-5">
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center space-x-3">
-            <BarChart3 className="h-8 w-8 text-emerald-600" />
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+              <BarChart3 className="h-4 w-4 text-emerald-600" />
+            </div>
             <div>
-              <div className="text-xs text-gray-600">Market Size</div>
-              <div className="text-xl font-bold text-emerald-700">
+              <div className="text-xs text-muted-foreground">Market Size</div>
+              <div className="text-xl font-semibold text-gray-900">
                 {formatVolume(data.protection_kpis.total_market_volume)} volume
               </div>
             </div>
@@ -209,7 +201,7 @@ export function MarketOverview() {
 
       {/* Share of Search Section */}
       <section>
-        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <TrendingUp className="h-5 w-5 text-emerald-600" />
           Share of Search
         </h2>
@@ -218,7 +210,7 @@ export function MarketOverview() {
 
       {/* Top Players by Domain Type */}
       <section>
-        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <Users className="h-5 w-5 text-emerald-600" />
           Strongest Market Players
         </h2>
@@ -232,7 +224,7 @@ export function MarketOverview() {
           />
         </div>
 
-        <Grid numItems={1} numItemsMd={nonBrandDomainTypes.length >= 3 ? 3 : 2} className="gap-6">
+        <div className={`grid grid-cols-1 ${nonBrandDomainTypes.length >= 3 ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-6`}>
           {nonBrandDomainTypes.map((domainType) => (
             <DomainVisibilitySection
               key={domainType}
@@ -243,12 +235,12 @@ export function MarketOverview() {
               limit={5}
             />
           ))}
-        </Grid>
+        </div>
       </section>
 
       {/* Brand Protection Health */}
       <section>
-        <h2 className="text-xl font-bold mb-4">Market Brand Protection</h2>
+        <h2 className="text-lg font-semibold mb-4">Market Brand Protection</h2>
         <MarketProtectionSnapshot
           kpis={data.protection_kpis}
           lossDistribution={data.loss_distribution}

@@ -1,5 +1,5 @@
 /**
- * Modern Modifier Groups table with gradient styling.
+ * Modifier Groups table with flat styling.
  */
 
 import React from 'react';
@@ -24,13 +24,13 @@ export function ModifierGroupsTable({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       transition={{ duration: 0.5, delay: 0.7 }}
-      className="bg-white rounded-2xl p-6 border border-gray-200 shadow-md hover:shadow-xl transition-all duration-300"
+      className="bg-white rounded-xl p-6 border border-gray-200 hover:border-gray-300 transition-all duration-300"
     >
       <div className="mb-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-1 flex items-center">
+        <h3 className="text-lg font-semibold text-gray-900 mb-1 flex items-center">
           Performance by Modifier Group
           <InfoTooltip
             title="Performance by Modifier Group"
@@ -72,8 +72,8 @@ export function ModifierGroupsTable({
                 >
                 <td className="py-4 px-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center flex-shrink-0">
-                      <Target className="w-5 h-5 text-white" />
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                      <Target className="w-4 h-4 text-blue-600" />
                     </div>
                     <span className="font-semibold text-gray-900">
                       {mg.modifier_group}
@@ -82,18 +82,18 @@ export function ModifierGroupsTable({
                 </td>
                 <td className="py-4 px-4 text-right">
                   <div className="flex items-center justify-end gap-2">
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs font-medium">
                       <Award className="w-3 h-3" />
                       {mg.keywords_winning}
                     </span>
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-50 text-red-600 text-xs font-medium">
                       {mg.keywords_losing}
                     </span>
                   </div>
                 </td>
                 <td className="py-4 px-4 text-right">
                   <div className="space-y-1">
-                    <div className="font-bold text-gray-900">
+                    <div className="font-semibold text-gray-900">
                       {formatNumber(mg.total_volume)}
                     </div>
                     <div className="flex items-center justify-end gap-2 text-xs">
@@ -109,12 +109,12 @@ export function ModifierGroupsTable({
                 </td>
                 <td className="py-4 px-4 text-right">
                   <span
-                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-bold ${
+                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium ${
                       mg.win_rate >= 80
-                        ? 'bg-emerald-100 text-emerald-700'
+                        ? 'bg-emerald-50 text-emerald-600'
                         : mg.win_rate >= 50
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-red-100 text-red-700'
+                        ? 'bg-amber-50 text-amber-600'
+                        : 'bg-red-50 text-red-600'
                     }`}
                   >
                     <TrendingUp className="w-3 h-3" />

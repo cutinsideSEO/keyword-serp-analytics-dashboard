@@ -2,7 +2,7 @@
  * Unified DataExplorer component.
  * Replaces CategoryProtectionExplorer, ModifierGroupProtectionExplorer,
  * CategoryExplorer, and ModifierGroupExplorer with a single configurable component.
- * Upgraded: custom card styling, gradient icon badge, bg-gray-50 thead, optional footer.
+ * Clean card styling, flat icon badge, bg-gray-50 thead, optional footer.
  */
 
 import { useState } from 'react';
@@ -71,16 +71,16 @@ export function DataExplorer<T>({
   };
 
   return (
-    <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden">
+    <div className="bg-white rounded-xl p-6 border border-gray-200 overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <div
-          className={`w-10 h-10 rounded-lg flex items-center justify-center ${iconBgClass}`}
+          className={`w-8 h-8 rounded-lg flex items-center justify-center ${iconBgClass}`}
         >
           {icon}
         </div>
         <div>
-          <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             {title}
             {tooltipInfo && (
               <InfoTooltip
@@ -137,8 +137,8 @@ export function DataExplorer<T>({
                   return (
                     <motion.tr
                       key={rowKey}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
                       transition={{ delay: idx * 0.02 }}
                       onClick={() => onRowClick?.(item)}
                       className={`${

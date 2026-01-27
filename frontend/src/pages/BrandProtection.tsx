@@ -4,7 +4,6 @@
  */
 
 import { useState, useCallback } from 'react';
-import { Grid, Col } from '@tremor/react';
 import { Shield, Layers, Tag, TrendingDown, CheckCircle2, XCircle } from 'lucide-react';
 import { BrandPicker } from '../components/common/BrandPicker';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
@@ -20,6 +19,7 @@ import { CompetitorChart } from '../components/dashboard/CompetitorChart';
 import { DomainTypesChart } from '../components/dashboard/DomainTypesChart';
 import { WinLossTable } from '../components/dashboard/WinLossTable';
 import { useApiWithParam } from '../hooks/useApi';
+import { usePersistedBrand } from '../hooks/usePersistedBrand';
 import { getBrandProtectionDashboard, getModifierGroupStats } from '../api/endpoints';
 import { formatCompactNumber, formatNumber } from '../utils/formatters';
 import type {
@@ -29,7 +29,7 @@ import type {
 } from '../types';
 
 export function BrandProtection() {
-  const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
+  const [selectedBrand, setSelectedBrand] = usePersistedBrand();
 
   // Drawer state
   const [categoryDrawer, setCategoryDrawer] = useState<{
@@ -267,14 +267,14 @@ export function BrandProtection() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-blue-400 mb-1">
+          <h1 className="text-3xl font-semibold text-gray-900 mb-1">
             Protect
           </h1>
-          <p className="text-gray-600">
+          <p className="text-sm text-muted-foreground">
             Defend your branded keywords and identify competitive threats
           </p>
         </div>
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-4 min-w-[260px]">
+        <div className="bg-white rounded-xl border border-gray-200 p-4 min-w-[260px]">
           <label className="block text-sm font-semibold text-gray-700 mb-2">
             Select Brand
           </label>
@@ -290,13 +290,13 @@ export function BrandProtection() {
 
       {/* No Brand Selected */}
       {!selectedBrand && (
-        <div className="flex h-80 items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50">
+        <div className="flex h-80 items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-gray-50">
           <div className="text-center">
             <Shield className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-4 text-lg font-medium text-gray-900">
               Select a brand to get started
             </h3>
-            <p className="mt-2 text-sm text-gray-500 max-w-sm">
+            <p className="mt-2 text-sm text-muted-foreground max-w-sm">
               Choose a brand from the dropdown above to see brand protection metrics
             </p>
           </div>
@@ -328,7 +328,7 @@ export function BrandProtection() {
           )}
 
           {/* KPI Cards Row - 3 focused cards */}
-          <Grid numItemsMd={3} className="gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <BrandHealthCard
               score={healthScore}
               winRateKeywords={data.kpis.win_rate_keywords}
@@ -347,15 +347,15 @@ export function BrandProtection() {
                 avgPosition={topThreat.avg_position}
               />
             ) : (
-              <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-lg flex items-center justify-center">
+              <div className="bg-white rounded-xl p-6 border border-gray-200 flex items-center justify-center">
                 <div className="text-center">
                   <Shield className="w-12 h-12 text-emerald-500 mx-auto mb-2" />
                   <p className="font-semibold text-emerald-600">No threats detected</p>
-                  <p className="text-sm text-gray-500">You're winning all keywords!</p>
+                  <p className="text-sm text-muted-foreground">You're winning all keywords!</p>
                 </div>
               </div>
             )}
-          </Grid>
+          </div>
 
           {/* Key Insight */}
           {healthScore < 50 && (
@@ -369,20 +369,20 @@ export function BrandProtection() {
           )}
 
           {/* Charts Row: Competitors & Domain Types */}
-          <Grid numItemsMd={2} className="gap-6">
-            <Col>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
               <CompetitorChart
                 competitors={data.top_competitors}
                 brandName={data.brand_name}
               />
-            </Col>
-            <Col>
+            </div>
+            <div>
               <DomainTypesChart
                 domainTypes={data.losses_by_domain_type}
                 brandName={data.brand_name}
               />
-            </Col>
-          </Grid>
+            </div>
+          </div>
 
           {/* Category Losses - DataExplorer with drawer */}
           <DataExplorer

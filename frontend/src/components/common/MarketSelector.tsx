@@ -5,7 +5,7 @@
  * Persists selection to localStorage and triggers config reload.
  */
 
-import { Select, SelectItem } from '@tremor/react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Globe } from 'lucide-react';
 import { useMarketConfig } from '../../contexts/MarketConfigContext';
 
@@ -35,13 +35,20 @@ export function MarketSelector() {
         value={currentMarketId}
         onValueChange={setCurrentMarket}
         disabled={isLoading}
-        icon={Globe}
       >
-        {availableMarkets.map((market) => (
-          <SelectItem key={market.id} value={market.id}>
-            {market.name}
-          </SelectItem>
-        ))}
+        <SelectTrigger className="w-full">
+          <div className="flex items-center gap-2">
+            <Globe className="w-4 h-4" />
+            <SelectValue placeholder="Select market..." />
+          </div>
+        </SelectTrigger>
+        <SelectContent>
+          {availableMarkets.map((market) => (
+            <SelectItem key={market.id} value={market.id}>
+              {market.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
       </Select>
     </div>
   );

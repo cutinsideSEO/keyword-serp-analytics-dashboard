@@ -41,22 +41,25 @@ Check Supabase logs for RPC errors via MCP: `mcp__supabase__get_logs` with `serv
 ┌─────────────────┐     ┌─────────────────┐     ┌──────────────────┐
 │   Frontend      │────▶│    Backend      │────▶│    Supabase      │
 │  React + Vite   │◀────│    FastAPI      │◀────│   PostgreSQL     │
-│  Tremor + TS    │     │    Python 3.11  │     │  Multi-market    │
+│  shadcn/ui + TS │     │    Python 3.11  │     │  Multi-market    │
 └─────────────────┘     └─────────────────┘     └──────────────────┘
          │                      │
    TypeScript types      Pydantic schemas        RPC functions
    frontend/src/types    backend/app/schemas     Supabase Dashboard
 ```
 
-| Layer    | Technology                   | Purpose                          |
-|----------|------------------------------|----------------------------------|
-| Database | Supabase/Postgres            | Cloud database with multi-market |
-| Backend  | FastAPI + Python 3.11        | REST API with OpenAPI docs       |
-| Frontend | React 18 + TypeScript        | UI framework                     |
-| UI       | Tremor 3.x + Tailwind CSS    | Dashboard components + styling   |
-| Animation| Framer Motion                | Sidebar, drawer, card transitions|
-| Icons    | Lucide React                 | Icon library                     |
-| AI       | Claude API                   | Domain classification            |
+| Layer    | Technology                       | Purpose                          |
+|----------|----------------------------------|----------------------------------|
+| Database | Supabase/Postgres                | Cloud database with multi-market |
+| Backend  | FastAPI + Python 3.11            | REST API with OpenAPI docs       |
+| Frontend | React 18 + TypeScript            | UI framework                     |
+| UI       | shadcn/ui + Radix UI + Tailwind  | Component primitives + styling   |
+| Data     | TanStack Query (react-query)     | Caching, dedup, auto-cancel      |
+| Charts   | Recharts + shadcn ChartContainer | Dashboard charts (bar, pie)      |
+| Tables   | TanStack Table + shadcn Table    | Data tables with sorting/paging  |
+| Animation| Framer Motion                    | Sidebar, drawer, card transitions|
+| Icons    | Lucide React                     | Icon library (shadcn default)    |
+| AI       | Claude API                       | Domain classification            |
 
 ## Data Request Flow (Critical Pattern)
 
@@ -83,6 +86,8 @@ Frontend API Call → FastAPI Router → Service Method → Supabase RPC → Pos
 | Frontend Drawers | `frontend/src/components/dashboard/ModifierGroupDrawer.tsx` | Unified modifier group drill-down (protection + opportunity) |
 | Frontend Drawers | `frontend/src/components/dashboard/CategoryDetailDrawer.tsx` | Category drill-down drawer (protection) |
 | Frontend Tables | `frontend/src/components/dashboard/DataExplorer.tsx` | Generic data table with row click, pagination, footer |
+| Frontend Hooks | `frontend/src/hooks/useApi.ts` | `useApi` / `useApiWithParam` — TanStack Query wrappers |
+| Frontend Hooks | `frontend/src/hooks/usePersistedBrand.ts` | Cross-page brand persistence (localStorage, per-market) |
 | Frontend Pages | `frontend/src/pages/BrandProtection.tsx` | Protect page (brand health, categories, modifier groups) |
 | Frontend Pages | `frontend/src/pages/CategoryOpportunities.tsx` | Discover page (non-branded + competitor opportunities) |
 
@@ -192,15 +197,109 @@ const Icon = getIcon(competitor.domain_type);
 
 **Drawer pattern**: All drill-down detail views use side-panel drawers (slide-in from right, escape key, overlay click-to-close, body scroll lock). Click any table row on any page to open a drawer with detailed breakdown. Two unified, context-aware drawer components handle all drill-downs:
 
-- **`ModifierGroupDrawer`** (`frontend/src/components/dashboard/ModifierGroupDrawer.tsx`) — Used by both Protect and Opportunities pages. Accepts a `context: 'protection' | 'opportunity'` prop to switch between win/loss metrics (protection) and capture/uncapture metrics (opportunity). Also accepts `keywordType?: 'nonbranded' | 'competitor_branded'` for the opportunity context. Contains hero stats with SVG progress ring, tabbed content (Values/Tags, Competitors, Keywords), and custom CSS visualizations (no Tremor charts).
-- **`CategoryDetailDrawer`** (`frontend/src/components/dashboard/CategoryDetailDrawer.tsx`) — Used by the Protect page for category breakdowns. Accepts `context: 'protection' | 'opportunity'` prop. Contains hero stats, tabbed content (Values, Competitors, Keywords), and custom CSS visualizations replacing Tremor BarChart/DonutChart.
+- **`ModifierGroupDrawer`** (`frontend/src/components/dashboard/ModifierGroupDrawer.tsx`) — Used by both Protect and Opportunities pages. Accepts a `context: 'protection' | 'opportunity'` prop to switch between win/loss metrics (protection) and capture/uncapture metrics (opportunity). Also accepts `keywordType?: 'nonbranded' | 'competitor_branded'` for the opportunity context. Contains hero stats with SVG progress ring, tabbed content (Values/Tags, Competitors, Keywords), and custom CSS visualizations.
+- **`CategoryDetailDrawer`** (`frontend/src/components/dashboard/CategoryDetailDrawer.tsx`) — Used by the Protect page for category breakdowns. Accepts `context: 'protection' | 'opportunity'` prop. Contains hero stats, tabbed content (Values, Competitors, Keywords), and custom CSS visualizations.
 - **Base `Drawer`** (`frontend/src/components/common/Drawer.tsx`) — Low-level reusable shell that both drawers build on.
 
-**DataExplorer** (`frontend/src/components/dashboard/DataExplorer.tsx`): Generic table component used for all data tables on Protect page. Accepts typed columns via `ExplorerColumn<T>[]`, supports row click handlers (for opening drawers), pagination via "Show More", optional footer, and loading states. Custom styled card (no Tremor Card dependency).
+**DataExplorer** (`frontend/src/components/dashboard/DataExplorer.tsx`): Generic table component used for all data tables on Protect page. Accepts typed columns via `ExplorerColumn<T>[]`, supports row click handlers (for opening drawers), pagination via "Show More", optional footer, and loading states. Styled with `rounded-xl border border-gray-200`.
 
-**Data fetching hooks**: `useApi(fetchFn)` and `useApiWithParam(fetchFn, param)` handle loading/error states.
+**Data fetching (TanStack Query)**: All API data flows through TanStack Query (`@tanstack/react-query`). The `QueryClientProvider` wraps the app in `App.tsx` with these defaults:
+- `staleTime: 5 min` — data stays fresh for 5 minutes (only changes after imports)
+- `gcTime: 10 min` — cached data kept for 10 minutes
+- `retry: 2` — failed queries retry twice automatically
+- `refetchOnWindowFocus: false` — no background refetches
+
+Hooks in `frontend/src/hooks/useApi.ts` wrap TanStack Query while preserving the `{ data, loading, error, refetch }` return shape:
+```tsx
+// Generic fetch (used by pages that call parameterless endpoints)
+const { data, loading, error, refetch } = useApi(fetchFn, dependencies);
+
+// Fetch with nullable param (disabled when param is null)
+const { data, loading, error, refetch } = useApiWithParam(fetchFn, param, dependencies);
+```
+Both hooks auto-prefix query keys with the current market ID from localStorage, preventing cross-market cache collisions. Pages like Home, BrandProtection, and CategoryOpportunities use these hooks. MarketOverview and drawers use `useQuery` directly.
+
+When switching markets, `MarketConfigContext.setCurrentMarket()` calls `queryClient.invalidateQueries()` to clear all cached data.
+
+**Brand persistence**: `usePersistedBrand()` (`frontend/src/hooks/usePersistedBrand.ts`) stores the selected brand in `localStorage` scoped per market (`selectedBrand_{marketId}`). Used by Home, BrandProtection, and CategoryOpportunities. Switching markets reads that market's stored brand; switching back restores the previous selection.
+```tsx
+const [selectedBrand, setSelectedBrand] = usePersistedBrand();
+```
 
 **Shared formatters** (`frontend/src/utils/formatters.ts`): Use `formatNumber()` for exact counts, `formatCompactNumber()` for abbreviated volume (e.g., "1.2M"), and `formatPercent()` for percentages. Never create local formatting functions in components.
+
+### shadcn/ui Component System
+
+The frontend uses [shadcn/ui](https://ui.shadcn.com/) — a collection of copy-pasted Radix UI components styled with Tailwind CSS. Config: `frontend/components.json`. Utility: `cn()` from `@/lib/utils`.
+
+**Available components** (in `frontend/src/components/ui/`):
+- `card.tsx` — Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter
+- `button.tsx` — Button (variants: default, destructive, outline, secondary, ghost, link)
+- `badge.tsx` — Badge (variants: default, secondary, destructive, outline)
+- `input.tsx` — Input
+- `select.tsx` — Select, SelectTrigger, SelectValue, SelectContent, SelectItem
+- `tabs.tsx` — Tabs, TabsList, TabsTrigger, TabsContent (value-based, not index-based)
+- `table.tsx` — Table, TableHeader, TableHead, TableRow, TableBody, TableCell
+- `chart.tsx` — ChartContainer, ChartTooltip, ChartTooltipContent (Recharts wrapper)
+- `combobox.tsx` — Combobox (custom: Command + Popover, replaces search-select pattern)
+- `command.tsx`, `popover.tsx`, `dialog.tsx`, `separator.tsx`, `tooltip.tsx`
+
+**Usage patterns**:
+```tsx
+// Card
+import { Card, CardContent } from '@/components/ui/card';
+<Card><CardContent className="pt-6">...</CardContent></Card>
+// Or plain: <div className="rounded-xl border border-gray-200 p-6">
+
+// Tabs (value-based, NOT index-based)
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+<Tabs defaultValue="wins">
+  <TabsList><TabsTrigger value="wins">Wins</TabsTrigger></TabsList>
+  <TabsContent value="wins">...</TabsContent>
+</Tabs>
+
+// Select (compound component)
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+<Select value={v} onValueChange={set}>
+  <SelectTrigger><SelectValue placeholder="Choose..." /></SelectTrigger>
+  <SelectContent><SelectItem value="x">X</SelectItem></SelectContent>
+</Select>
+
+// Combobox (searchable select)
+import { Combobox } from '@/components/ui/combobox';
+<Combobox options={[{ value: 'x', label: 'X' }]} value={v} onValueChange={set} />
+
+// Charts (Recharts + shadcn wrapper)
+import { BarChart, Bar, XAxis, YAxis } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+<ChartContainer config={chartConfig} className="h-[300px] w-full">
+  <BarChart data={data}><Bar dataKey="value" /></BarChart>
+</ChartContainer>
+
+// cn() utility for conditional classes
+import { cn } from '@/lib/utils';
+<div className={cn("base-class", isActive && "active-class")} />
+```
+
+### Visual Design System
+
+The UI follows a clean, minimal aesthetic. All components must follow these rules:
+
+| Aspect | Pattern |
+|--------|---------|
+| Body background | White `#FFFFFF` |
+| Card container | `rounded-xl border border-gray-200` (no shadows) |
+| Card hover | `hover:border-gray-300` (no shadow-xl, no scale-105) |
+| Icon boxes | `w-8 h-8 rounded-lg bg-{color}-50 text-{color}-600` (flat, no gradients) |
+| Section titles | `text-lg font-semibold` |
+| Page titles | `text-gray-900` plain text (no gradient text) |
+| KPI values | `text-2xl font-semibold text-gray-900` |
+| Badges | `bg-{color}-50 text-{color}-600 font-medium` |
+| Progress bars | Solid `bg-{color}-500` (no gradients) |
+| Sidebar | `bg-white border-r border-gray-200` |
+| Animations | `initial={{ opacity: 0 }}` (no y-slide); stagger `delay: idx * 0.03` |
+
+**Never use**: gradient text (`bg-clip-text`), glass morphism (`backdrop-blur`), glow effects (`shadow-xl`, `blur-xl`), heavy transforms (`hover:scale-105`), or dark sidebar gradients.
 
 ## Backend Architecture
 
@@ -342,7 +441,7 @@ FROM all_winners
 
 **Additional rules:**
 - Use covering indexes for frequently joined columns: `CREATE INDEX ON serp_results (domain_id, keyword_id, rank_absolute)` enables index-only scans
-- Vercel serverless has a 10-second timeout; Supabase PostgREST has an 8-second statement timeout
+- Vercel serverless has a 10-second timeout; Supabase `anon` and `authenticator` roles have `statement_timeout=30s`
 - Always benchmark new RPCs against `bicycle_us` (the largest market) using `EXPLAIN ANALYZE`
 - If an RPC takes >2s on `bicycle_us`, it will likely cause timeouts when called in parallel with other slow RPCs via `asyncio.gather()`
 
@@ -397,7 +496,7 @@ FROM all_winners
 **Solution**: Use `asyncio.gather()` with `return_exceptions=True` to run independent RPCs in parallel. Total time becomes max(individual RPCs) instead of sum. Both `supabase_analytics.py` and `supabase_market_analytics.py` use this pattern.
 
 ### 13. Slow RPCs Causing Silent Data Loss via Timeouts
-**Problem**: Supabase PostgREST has an 8-second statement timeout. When multiple slow RPCs run in parallel via `asyncio.gather()`, they can all hit the timeout simultaneously. Exception handlers silently return default empty objects (e.g., `MarketProtectionKPIs()` with all zeros), making it look like the data is empty rather than an error.
+**Problem**: Supabase PostgREST `anon`/`authenticator` roles have a 30-second statement timeout. When multiple slow RPCs run in parallel via `asyncio.gather()`, they can all hit the timeout simultaneously. Exception handlers silently return default empty objects (e.g., `MarketProtectionKPIs()` with all zeros), making it look like the data is empty rather than an error.
 **Solution**: Keep all RPCs under 2 seconds on the largest market. Use `organic_winners` materialized view, direct JOINs, and `ROW_NUMBER()` to optimize. Always benchmark with `EXPLAIN ANALYZE SELECT function_name('bicycle_us', ...)` before deploying.
 
 ## Multi-Market System

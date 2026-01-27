@@ -17,6 +17,7 @@ export interface BrandDomain {
   brand_name: string;
   domain: string;
   is_primary: boolean;
+  domain_type?: string;
   confidence: number;
   created_at: string;
 }

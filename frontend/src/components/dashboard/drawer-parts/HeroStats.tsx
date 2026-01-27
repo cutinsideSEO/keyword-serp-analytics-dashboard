@@ -51,19 +51,19 @@ function MarketHero({ metrics }: { metrics: MarketMetrics }) {
   return (
     <div className="grid grid-cols-3 gap-3">
       <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 text-center">
-        <div className="text-2xl font-bold text-emerald-600">
+        <div className="text-2xl font-semibold text-emerald-600">
           {formatNumber(metrics.total_keywords)}
         </div>
         <div className="text-xs text-gray-500">Keywords</div>
       </div>
       <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 text-center">
-        <div className="text-2xl font-bold text-emerald-600">
+        <div className="text-2xl font-semibold text-emerald-600">
           {formatCompactNumber(metrics.total_volume)}
         </div>
         <div className="text-xs text-gray-500">Total Volume</div>
       </div>
       <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 text-center">
-        <div className="text-2xl font-bold text-emerald-600">
+        <div className="text-2xl font-semibold text-emerald-600">
           {metrics.itemCount ?? 0}
         </div>
         <div className="text-xs text-gray-500">{metrics.itemLabel ?? 'Items'}</div>
@@ -120,7 +120,7 @@ function BrandHero({
   return (
     <div className="space-y-4">
       {/* Primary metric with progress ring */}
-      <div className="flex items-center gap-6 p-5 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200">
+      <div className="flex items-center gap-6 p-5 bg-gray-50 rounded-xl border border-gray-200">
         <div className="relative w-24 h-24 flex-shrink-0">
           <svg className="w-24 h-24 -rotate-90" viewBox="0 0 96 96">
             <circle cx="48" cy="48" r="40" fill="none" stroke="#e5e7eb" strokeWidth="6" />
@@ -138,12 +138,12 @@ function BrandHero({
             />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className={`text-xl font-bold ${rateColor}`}>{primaryRate.toFixed(0)}%</span>
+            <span className={`text-lg font-semibold ${rateColor}`}>{primaryRate.toFixed(0)}%</span>
           </div>
         </div>
         <div className="flex-1">
           <div className="text-sm font-medium text-gray-500 mb-1">{primaryLabel}</div>
-          <div className={`text-3xl font-bold ${rateColor}`}>{primaryRate.toFixed(1)}%</div>
+          <div className={`text-2xl font-semibold ${rateColor}`}>{primaryRate.toFixed(1)}%</div>
           <div className="text-sm text-gray-500 mt-1">
             {formatNumber(metrics.total_keywords)} keywords &middot;{' '}
             {formatCompactNumber(metrics.total_volume)} volume
@@ -158,7 +158,7 @@ function BrandHero({
             <Target className="h-3 w-3" />
             Avg Position
           </div>
-          <div className="text-lg font-bold text-gray-900">
+          <div className="text-lg font-semibold text-gray-900">
             {metrics.avg_brand_position ? `#${metrics.avg_brand_position.toFixed(1)}` : 'N/A'}
           </div>
         </div>
@@ -167,7 +167,7 @@ function BrandHero({
             <TrendingUp className="h-3 w-3" />
             {wonLabel}
           </div>
-          <div className="text-lg font-bold text-emerald-700">{formatNumber(wonCount)}</div>
+          <div className="text-lg font-semibold text-emerald-700">{formatNumber(wonCount)}</div>
           <div className="text-xs text-emerald-600">{formatCompactNumber(wonVolume)} vol</div>
         </div>
         <div className="bg-rose-50 rounded-lg p-3 border border-rose-200 text-center">
@@ -175,7 +175,7 @@ function BrandHero({
             <TrendingDown className="h-3 w-3" />
             {lostLabel}
           </div>
-          <div className="text-lg font-bold text-rose-700">{formatNumber(lostCount)}</div>
+          <div className="text-lg font-semibold text-rose-700">{formatNumber(lostCount)}</div>
           <div className="text-xs text-rose-600">{formatCompactNumber(lostVolume)} vol</div>
         </div>
       </div>

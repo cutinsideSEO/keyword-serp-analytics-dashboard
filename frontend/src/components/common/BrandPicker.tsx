@@ -2,10 +2,10 @@
  * Brand picker dropdown component.
  */
 
-import { useState, useEffect, useMemo } from 'react';
-import { SearchSelect, SearchSelectItem } from '@tremor/react';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Combobox } from '@/components/ui/combobox';
 import { getBrands } from '../../api/endpoints';
-import type { Brand } from '../../types';
 import { formatCompactNumber } from '../../utils/formatters';
 
 interface BrandPickerProps {
@@ -23,31 +23,23 @@ export function BrandPicker({
   minVolume = 100,
   placeholder = 'Select a brand...',
 }: BrandPickerProps) {
-  const [brands, setBrands] = useState<Brand[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading: loading, error } = useQuery({
+    queryKey: ['brands', minKeywords, minVolume],
+    queryFn: () => getBrands(minKeywords, minVolume),
+  });
 
-  useEffect(() => {
-    async function fetchBrands() {
-      try {
-        setLoading(true);
-        const response = await getBrands(minKeywords, minVolume);
-        setBrands(response.items);
-        setError(null);
-      } catch (err) {
-        setError('Failed to load brands');
-        console.error('Error loading brands:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchBrands();
-  }, [minKeywords, minVolume]);
+  const brands = data?.items ?? [];
 
   const sortedBrands = useMemo(() => {
     return [...brands].sort((a, b) => b.total_volume - a.total_volume);
   }, [brands]);
+
+  const options = useMemo(() => {
+    return sortedBrands.map((brand) => ({
+      value: brand.brand_name,
+      label: `${brand.brand_name} (${formatCompactNumber(brand.total_volume)} vol)`,
+    }));
+  }, [sortedBrands]);
 
   if (loading) {
     return (
@@ -57,28 +49,19 @@ export function BrandPicker({
 
   if (error) {
     return (
-      <div className="text-sm text-red-600">{error}</div>
+      <div className="text-sm text-red-600">Failed to load brands</div>
     );
   }
 
   return (
-    <SearchSelect
+    <Combobox
+      options={options}
       value={value || ''}
       onValueChange={(val) => onChange(val || null)}
       placeholder={placeholder}
-      className="w-64"
-    >
-      {sortedBrands.map((brand) => (
-        <SearchSelectItem key={brand.brand_name} value={brand.brand_name}>
-          <span className="flex items-center justify-between gap-4">
-            <span className="font-medium">{brand.brand_name}</span>
-            <span className="text-xs text-gray-500">
-              {formatCompactNumber(brand.total_volume)} vol
-            </span>
-          </span>
-        </SearchSelectItem>
-      ))}
-    </SearchSelect>
+      searchPlaceholder="Search brands..."
+      emptyText="No brands found."
+    />
   );
 }
 

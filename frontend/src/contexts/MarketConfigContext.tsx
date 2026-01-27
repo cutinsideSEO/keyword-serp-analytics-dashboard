@@ -7,6 +7,7 @@
  */
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   MarketConfig,
   DomainTypeConfig,
@@ -91,6 +92,7 @@ interface MarketConfigProviderProps {
 }
 
 export function MarketConfigProvider({ children }: MarketConfigProviderProps) {
+  const queryClient = useQueryClient();
   const [config, setConfig] = useState<MarketConfig>(DEFAULT_MARKET_CONFIG);
   const [marketConfigAPI, setMarketConfigAPI] = useState<MarketConfigAPI | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -197,8 +199,10 @@ export function MarketConfigProvider({ children }: MarketConfigProviderProps) {
   const setCurrentMarket = useCallback((marketId: string) => {
     localStorage.setItem(STORAGE_KEY, marketId);
     setCurrentMarketId(marketId);
+    // Invalidate all cached queries so pages refetch with the new market
+    queryClient.invalidateQueries();
     // Config will be refetched via the useEffect
-  }, []);
+  }, [queryClient]);
 
   const value: MarketConfigContextValue = {
     config,

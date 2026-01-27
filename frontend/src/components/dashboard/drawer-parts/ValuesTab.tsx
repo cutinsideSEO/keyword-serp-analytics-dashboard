@@ -39,7 +39,7 @@ export function ProtectionValuesTab({ values }: { values: CategoryValueProtectio
         return (
           <div
             key={value.value}
-            className="bg-white rounded-lg border border-gray-200 p-4 hover:border-blue-300 transition-colors"
+            className="bg-white rounded-lg border border-gray-200 p-4 hover:border-gray-300 transition-colors"
           >
             <div className="flex items-center justify-between mb-2">
               <span className="font-semibold text-gray-900">{value.value}</span>
@@ -51,7 +51,7 @@ export function ProtectionValuesTab({ values }: { values: CategoryValueProtectio
             <div className="flex items-center gap-2 mb-3">
               <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full"
+                  className="h-full bg-emerald-500 rounded-full"
                   style={{ width: `${barPct}%`, transition: 'width 0.4s ease' }}
                 />
               </div>
@@ -118,7 +118,7 @@ export function ProtectionTagsTab({ tags }: { tags: TagProtectionStats[] }) {
         return (
           <div
             key={tag.tag}
-            className="bg-white rounded-lg border border-gray-200 p-3 hover:border-blue-300 transition-colors"
+            className="bg-white rounded-lg border border-gray-200 p-3 hover:border-gray-300 transition-colors"
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">

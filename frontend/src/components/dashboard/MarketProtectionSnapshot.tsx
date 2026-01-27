@@ -5,7 +5,6 @@
  */
 
 import { motion } from 'framer-motion';
-import { Card, Text, Grid, Title } from '@tremor/react';
 import { Shield, AlertTriangle, TrendingDown, Users, PieChart } from 'lucide-react';
 import type { MarketProtectionKPIs, MarketLossDistribution } from '../../types';
 import { useMarketConfig } from '../../contexts/MarketConfigContext';
@@ -36,49 +35,53 @@ export function MarketProtectionSnapshot({ kpis, lossDistribution }: MarketProte
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <Grid numItems={1} numItemsMd={4} className="gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {/* Average Win Rate */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           transition={{ delay: 0.1 }}
         >
-          <Card decoration="top" decorationColor="emerald" className="h-full">
+          <div className="rounded-xl border border-gray-200 p-6 h-full">
             <div className="flex items-center gap-2 mb-2">
-              <Shield className="h-4 w-4 text-emerald-600" />
-              <Text>Average Win Rate</Text>
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <Shield className="h-4 w-4" />
+              </div>
+              <p className="text-sm text-muted-foreground">Average Win Rate</p>
             </div>
-            <div className="text-3xl font-bold text-emerald-600 mt-2">
+            <div className="text-2xl font-semibold text-emerald-600 mt-2">
               {kpis.average_win_rate.toFixed(1)}%
             </div>
-            <Text className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-gray-500 mt-1">
               across {kpis.total_brands} brands
-            </Text>
+            </p>
             <div className="mt-3 pt-3 border-t border-gray-200">
-              <span className={`text-xs font-semibold px-2 py-1 rounded-full bg-${healthStatus.color}-100 text-${healthStatus.color}-700`}>
+              <span className={`text-xs font-medium px-2 py-1 rounded-full bg-${healthStatus.color}-50 text-${healthStatus.color}-600`}>
                 {healthStatus.label}
               </span>
             </div>
-          </Card>
+          </div>
         </motion.div>
 
         {/* Total Volume at Risk */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
         >
-          <Card decoration="top" decorationColor="red" className="h-full">
+          <div className="rounded-xl border border-gray-200 p-6 h-full">
             <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <Text>Volume at Risk</Text>
+              <div className="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center">
+                <AlertTriangle className="h-4 w-4" />
+              </div>
+              <p className="text-sm text-muted-foreground">Volume at Risk</p>
             </div>
-            <div className="text-3xl font-bold text-red-600 mt-2">
+            <div className="text-2xl font-semibold text-red-600 mt-2">
               {(kpis.total_volume_losing / 1000000).toFixed(1)}M
             </div>
-            <Text className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-gray-500 mt-1">
               {kpis.total_keywords_losing.toLocaleString()} keywords
-            </Text>
+            </p>
             <div className="mt-3">
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
@@ -89,76 +92,80 @@ export function MarketProtectionSnapshot({ kpis, lossDistribution }: MarketProte
                 />
               </div>
             </div>
-          </Card>
+          </div>
         </motion.div>
 
         {/* Median Win Rate */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
         >
-          <Card decoration="top" decorationColor="blue" className="h-full">
+          <div className="rounded-xl border border-gray-200 p-6 h-full">
             <div className="flex items-center gap-2 mb-2">
-              <TrendingDown className="h-4 w-4 text-blue-600" />
-              <Text>Median Win Rate</Text>
+              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                <TrendingDown className="h-4 w-4" />
+              </div>
+              <p className="text-sm text-muted-foreground">Median Win Rate</p>
             </div>
-            <div className="text-3xl font-bold text-blue-600 mt-2">
+            <div className="text-2xl font-semibold text-blue-600 mt-2">
               {kpis.median_win_rate.toFixed(1)}%
             </div>
-            <Text className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-gray-500 mt-1">
               50% of brands
-            </Text>
+            </p>
             <div className="mt-3 pt-3 border-t border-gray-200">
-              <Text className="text-xs text-gray-600">
+              <p className="text-xs text-gray-600">
                 {kpis.median_win_rate < kpis.average_win_rate
                   ? 'Few brands dominate'
                   : 'Balanced distribution'}
-              </Text>
+              </p>
             </div>
-          </Card>
+          </div>
         </motion.div>
 
         {/* Total Brands */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
         >
-          <Card decoration="top" decorationColor="purple" className="h-full">
+          <div className="rounded-xl border border-gray-200 p-6 h-full">
             <div className="flex items-center gap-2 mb-2">
-              <Users className="h-4 w-4 text-purple-600" />
-              <Text>Total Brands</Text>
+              <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+                <Users className="h-4 w-4" />
+              </div>
+              <p className="text-sm text-muted-foreground">Total Brands</p>
             </div>
-            <div className="text-3xl font-bold text-purple-600 mt-2">
+            <div className="text-2xl font-semibold text-purple-600 mt-2">
               {kpis.total_brands}
             </div>
-            <Text className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-gray-500 mt-1">
               {kpis.total_branded_keywords.toLocaleString()} keywords
-            </Text>
+            </p>
             <div className="mt-3 pt-3 border-t border-gray-200">
-              <Text className="text-xs text-gray-600">
+              <p className="text-xs text-gray-600">
                 Avg {Math.round(kpis.total_branded_keywords / kpis.total_brands)} kw/brand
-              </Text>
+              </p>
             </div>
-          </Card>
+          </div>
         </motion.div>
-      </Grid>
+      </div>
 
       {/* Loss Distribution */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
         transition={{ delay: 0.5 }}
       >
-        <Card>
+        <div className="rounded-xl border border-gray-200 p-6">
           <div className="flex items-center gap-2 mb-4">
             <PieChart className="h-5 w-5 text-gray-600" />
-            <Title>Who Captures Brand Traffic</Title>
+            <h3 className="text-lg font-semibold text-gray-900">Who Captures Brand Traffic</h3>
           </div>
-          <Text className="text-gray-600 mb-4">
+          <p className="text-sm text-muted-foreground mb-4">
             Distribution of #1 rankings on branded keywords
-          </Text>
+          </p>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {lossDistribution
@@ -169,15 +176,15 @@ export function MarketProtectionSnapshot({ kpis, lossDistribution }: MarketProte
                 return (
                   <motion.div
                     key={dist.domain_type}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.6 + idx * 0.1 }}
-                    className={`text-center p-4 rounded-lg border-2 ${colorClass} transition-all hover:shadow-lg hover:scale-105`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.6 + idx * 0.03 }}
+                    className={`text-center p-4 rounded-lg border ${colorClass} transition-all hover:border-gray-300`}
                   >
-                    <div className="text-3xl font-bold mb-1">
+                    <div className="text-2xl font-semibold mb-1">
                       {dist.percentage_of_losses.toFixed(1)}%
                     </div>
-                    <div className="text-sm font-semibold mb-2">{dist.domain_type}</div>
+                    <div className="text-sm font-medium mb-2">{dist.domain_type}</div>
                     <div className="text-xs opacity-75">
                       {(dist.loss_volume / 1000).toFixed(0)}K volume
                     </div>
@@ -193,7 +200,7 @@ export function MarketProtectionSnapshot({ kpis, lossDistribution }: MarketProte
 
           {/* Top Domains Preview */}
           <div className="mt-6 pt-6 border-t border-gray-200">
-            <Text className="text-sm text-gray-600 mb-3">Top capturing domains by type:</Text>
+            <p className="text-sm text-muted-foreground mb-3">Top capturing domains by type:</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {lossDistribution.map((dist) => (
                 <div key={dist.domain_type} className="text-xs">
@@ -205,7 +212,7 @@ export function MarketProtectionSnapshot({ kpis, lossDistribution }: MarketProte
               ))}
             </div>
           </div>
-        </Card>
+        </div>
       </motion.div>
     </div>
   );

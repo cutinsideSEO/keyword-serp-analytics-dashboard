@@ -4,7 +4,6 @@
  */
 
 import { motion } from 'framer-motion';
-import { Card } from '@tremor/react';
 import { TrendingDown, AlertCircle } from 'lucide-react';
 import type { BrandLossItem } from '../../types';
 
@@ -29,11 +28,11 @@ export function BiggestLosersTable({ data, limit = 10 }: BiggestLosersTableProps
   };
 
   return (
-    <Card>
+    <div className="rounded-xl border border-gray-200 p-6">
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b-2 border-gray-200">
+            <tr className="border-b border-gray-200">
               <th className="text-left py-4 px-4 font-semibold text-gray-700 text-sm">#</th>
               <th className="text-left py-4 px-4 font-semibold text-gray-700 text-sm">Brand</th>
               <th className="text-right py-4 px-4 font-semibold text-gray-700 text-sm">
@@ -59,9 +58,9 @@ export function BiggestLosersTable({ data, limit = 10 }: BiggestLosersTableProps
               return (
                 <motion.tr
                   key={brand.brand_name}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.05, duration: 0.3 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: idx * 0.03, duration: 0.3 }}
                   className={`border-b border-l-4 ${getSeverityColor(brand.win_rate)} ${
                     isTopLoser ? 'bg-red-50/30' : 'bg-white'
                   } hover:bg-gray-50 transition-colors`}
@@ -69,10 +68,10 @@ export function BiggestLosersTable({ data, limit = 10 }: BiggestLosersTableProps
                   {/* Rank */}
                   <td className="py-4 px-4">
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                      className={`w-8 h-8 rounded-full flex items-center justify-center font-medium text-sm ${
                         isTopLoser
-                          ? 'bg-red-500 text-white'
-                          : 'bg-gray-200 text-gray-600'
+                          ? 'bg-red-100 text-red-600'
+                          : 'bg-gray-100 text-gray-600'
                       }`}
                     >
                       {idx + 1}
@@ -96,7 +95,7 @@ export function BiggestLosersTable({ data, limit = 10 }: BiggestLosersTableProps
 
                   {/* Keywords Lost */}
                   <td className="py-4 px-4 text-right">
-                    <div className="font-bold text-red-600 text-lg">
+                    <div className="font-semibold text-red-600 text-lg">
                       {brand.keywords_lost.toLocaleString()}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
@@ -106,7 +105,7 @@ export function BiggestLosersTable({ data, limit = 10 }: BiggestLosersTableProps
 
                   {/* Volume Lost */}
                   <td className="py-4 px-4 text-right">
-                    <div className="font-bold text-red-600 text-lg">
+                    <div className="font-semibold text-red-600 text-lg">
                       {(brand.volume_lost / 1000).toFixed(0)}K
                     </div>
                     <div className="text-xs text-gray-500 mt-1">search volume</div>
@@ -115,7 +114,7 @@ export function BiggestLosersTable({ data, limit = 10 }: BiggestLosersTableProps
                   {/* Win Rate */}
                   <td className="py-4 px-4 text-right">
                     <div
-                      className={`inline-block px-3 py-1 rounded-full font-bold ${getWinRateColor(
+                      className={`inline-block px-3 py-1 rounded-full font-medium ${getWinRateColor(
                         brand.win_rate
                       )}`}
                     >
@@ -131,7 +130,7 @@ export function BiggestLosersTable({ data, limit = 10 }: BiggestLosersTableProps
                           key={mg.modifier_group}
                           className="group relative"
                         >
-                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-red-100 text-red-700 rounded-md font-medium border border-red-200 hover:bg-red-200 transition-colors">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-red-50 text-red-600 rounded-md font-medium border border-red-100 hover:bg-red-100 transition-colors">
                             {mg.modifier_group}
                             <span className="text-[10px] opacity-75">
                               ({mg.loss_count})
@@ -166,24 +165,24 @@ export function BiggestLosersTable({ data, limit = 10 }: BiggestLosersTableProps
       >
         <div className="text-center p-4 bg-gray-50 rounded-lg">
           <div className="text-xs text-gray-500 mb-1">Total Keywords at Risk</div>
-          <div className="text-2xl font-bold text-gray-900">
+          <div className="text-2xl font-semibold text-gray-900">
             {topLosers.reduce((sum, b) => sum + b.keywords_lost, 0).toLocaleString()}
           </div>
         </div>
         <div className="text-center p-4 bg-gray-50 rounded-lg">
           <div className="text-xs text-gray-500 mb-1">Total Volume at Risk</div>
-          <div className="text-2xl font-bold text-gray-900">
+          <div className="text-2xl font-semibold text-gray-900">
             {(topLosers.reduce((sum, b) => sum + b.volume_lost, 0) / 1000000).toFixed(2)}M
           </div>
         </div>
         <div className="text-center p-4 bg-gray-50 rounded-lg">
           <div className="text-xs text-gray-500 mb-1">Average Win Rate</div>
-          <div className="text-2xl font-bold text-gray-900">
+          <div className="text-2xl font-semibold text-gray-900">
             {(topLosers.reduce((sum, b) => sum + b.win_rate, 0) / topLosers.length).toFixed(1)}%
           </div>
         </div>
       </motion.div>
-    </Card>
+    </div>
   );
 }
 

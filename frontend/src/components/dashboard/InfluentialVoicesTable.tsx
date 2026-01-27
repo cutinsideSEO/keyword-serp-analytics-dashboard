@@ -1,5 +1,5 @@
 /**
- * Modern Influential Voices table with gradient styling.
+ * Influential Voices table with flat styling.
  * Uses dynamic domain types from market configuration.
  */
 
@@ -27,14 +27,14 @@ export function InfluentialVoicesTable({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       transition={{ duration: 0.5, delay: 0.6 }}
-      className="bg-white rounded-2xl p-6 border border-gray-200 shadow-md hover:shadow-xl transition-all duration-300"
+      className="bg-white rounded-xl p-6 border border-gray-200 hover:border-gray-300 transition-all duration-300"
     >
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h3 className="text-xl font-bold text-gray-900 mb-1 flex items-center">
+          <h3 className="text-lg font-semibold text-gray-900 mb-1 flex items-center">
             Most Influential Voices
             <InfoTooltip
               title="Most Influential Voices"
@@ -46,8 +46,8 @@ export function InfluentialVoicesTable({
             Top performing domain for each type on {brandName} keywords
           </p>
         </div>
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center shadow-lg">
-          <Crown className="w-6 h-6 text-white" />
+        <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
+          <Crown className="w-5 h-5 text-purple-600" />
         </div>
       </div>
 
@@ -100,10 +100,9 @@ export function InfluentialVoicesTable({
                   <td className="py-4 px-4">
                     <div className="flex items-center gap-2">
                       <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ background: typeStyle.gradient }}
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${typeStyle.bgColor}`}
                       >
-                        <Layers className="w-4 h-4 text-white" />
+                        <Layers className={`w-4 h-4 ${typeStyle.textColor}`} />
                       </div>
                       <span className={`text-sm font-semibold ${typeStyle.textColor}`}>
                         {voice.domain_type}
@@ -116,18 +115,18 @@ export function InfluentialVoicesTable({
                     </span>
                   </td>
                   <td className="py-4 px-4 text-right">
-                    <span className="font-bold text-gray-900">
+                    <span className="font-semibold text-gray-900">
                       {formatNumber(voice.ranking_volume)}
                     </span>
                   </td>
                   <td className="py-4 px-4 text-right">
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm font-bold">
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-md bg-gray-50 text-gray-600 text-sm font-medium">
                       #{voice.avg_position.toFixed(1)}
                     </span>
                   </td>
                   <td className="py-4 px-4 text-right">
                     {voice.win_count > 0 ? (
-                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-100 text-red-700 text-sm font-bold">
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-red-50 text-red-600 text-sm font-medium">
                         <Award className="w-3 h-3" />
                         {voice.win_count}
                       </span>

@@ -23,8 +23,7 @@ interface KPICardProps {
     isPositive: boolean;
   };
   icon: React.ReactNode;
-  gradient: string;
-  glowColor: string;
+  colorClass: string;
   delay: number;
   tooltipInfo?: {
     title: string;
@@ -33,37 +32,23 @@ interface KPICardProps {
   };
 }
 
-function KPICard({ title, value, subtitle, trend, icon, gradient, glowColor, delay, tooltipInfo }: KPICardProps) {
+function KPICard({ title, value, subtitle, trend, icon, colorClass, delay, tooltipInfo }: KPICardProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       transition={{ duration: 0.5, delay }}
-      className="relative group"
     >
-      <div
-        className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl"
-        style={{ background: glowColor }}
-      />
-      <div
-        className="relative bg-white rounded-2xl p-6 border border-gray-200 shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden"
-      >
-        {/* Gradient Accent */}
-        <div
-          className="absolute top-0 right-0 w-32 h-32 opacity-10 rounded-full blur-3xl"
-          style={{ background: gradient }}
-        />
-
+      <div className="bg-white rounded-xl p-6 border border-gray-200 hover:border-gray-300 transition-all">
         {/* Icon */}
         <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 relative"
-          style={{ background: gradient, boxShadow: `0 4px 12px ${glowColor}` }}
+          className={`w-8 h-8 rounded-lg flex items-center justify-center mb-4 ${colorClass}`}
         >
-          <div className="text-white">{icon}</div>
+          {icon}
         </div>
 
         {/* Content */}
-        <div className="relative z-10">
+        <div>
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-medium text-gray-600 flex items-center">
               {title}
@@ -77,10 +62,10 @@ function KPICard({ title, value, subtitle, trend, icon, gradient, glowColor, del
             </p>
             {trend && (
               <span
-                className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${
+                className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
                   trend.isPositive
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-amber-100 text-amber-700'
+                    ? 'bg-emerald-50 text-emerald-600'
+                    : 'bg-amber-50 text-amber-600'
                 }`}
               >
                 {trend.isPositive ? (
@@ -93,15 +78,9 @@ function KPICard({ title, value, subtitle, trend, icon, gradient, glowColor, del
             )}
           </div>
 
-          <motion.h3
-            className="text-3xl font-bold mb-2 bg-clip-text text-transparent"
-            style={{ backgroundImage: gradient }}
-            initial={{ scale: 0.5 }}
-            animate={{ scale: 1 }}
-            transition={{ duration: 0.5, delay: delay + 0.2 }}
-          >
+          <h3 className="text-2xl font-semibold text-gray-900 mb-2">
             {value}
-          </motion.h3>
+          </h3>
 
           <p className="text-sm text-gray-500">{subtitle}</p>
         </div>
@@ -118,13 +97,10 @@ export function OpportunityKPICards({ kpis, variant = 'nonbranded' }: Opportunit
       title: isCompetitor ? 'Competitor Keywords' : 'Non-Branded Keywords',
       value: formatNumber(kpis.total_nonbranded_keywords),
       subtitle: `${formatCompactNumber(kpis.total_nonbranded_volume)} search volume`,
-      icon: <Search className="w-6 h-6" />,
-      gradient: isCompetitor
-        ? 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)'
-        : 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-      glowColor: isCompetitor
-        ? 'rgba(139, 92, 246, 0.15)'
-        : 'rgba(16, 185, 129, 0.15)',
+      icon: <Search className="w-4 h-4" />,
+      colorClass: isCompetitor
+        ? 'bg-purple-50 text-purple-600'
+        : 'bg-emerald-50 text-emerald-600',
       delay: 0,
       tooltipInfo: {
         title: isCompetitor ? 'Competitor Branded Keywords' : 'Non-Branded Keywords',
@@ -144,20 +120,17 @@ export function OpportunityKPICards({ kpis, variant = 'nonbranded' }: Opportunit
         value: formatPercent(kpis.overall_capture_rate),
         isPositive: kpis.overall_capture_rate >= 10,
       },
-      icon: <Target className="w-6 h-6" />,
-      gradient: isCompetitor
-        ? 'linear-gradient(135deg, #A855F7 0%, #9333EA 100%)'
-        : 'linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)',
-      glowColor: isCompetitor
-        ? 'rgba(168, 85, 247, 0.15)'
-        : 'rgba(20, 184, 166, 0.15)',
-      delay: 0.1,
+      icon: <Target className="w-4 h-4" />,
+      colorClass: isCompetitor
+        ? 'bg-purple-50 text-purple-600'
+        : 'bg-teal-50 text-teal-600',
+      delay: 0.03,
       tooltipInfo: {
         title: 'Capture Rate',
         description: isCompetitor
           ? 'Competitor branded keywords where your brand ranks #1. Shows how well you compete on competitor searches.'
           : 'Non-branded keywords where your brand ranks #1. This shows how well you compete on generic/category searches.',
-        calculation: '(Keywords where you rank #1 / Total keywords) × 100'
+        calculation: '(Keywords where you rank #1 / Total keywords) x 100'
       }
     },
     {
@@ -168,10 +141,9 @@ export function OpportunityKPICards({ kpis, variant = 'nonbranded' }: Opportunit
         value: formatPercent(100 - kpis.volume_capture_rate),
         isPositive: false,
       },
-      icon: <Compass className="w-6 h-6" />,
-      gradient: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
-      glowColor: 'rgba(245, 158, 11, 0.15)',
-      delay: 0.2,
+      icon: <Compass className="w-4 h-4" />,
+      colorClass: 'bg-amber-50 text-amber-600',
+      delay: 0.06,
       tooltipInfo: {
         title: 'Volume to Capture',
         description: isCompetitor
@@ -184,14 +156,11 @@ export function OpportunityKPICards({ kpis, variant = 'nonbranded' }: Opportunit
       title: 'Biggest Opportunity',
       value: kpis.biggest_opportunity_group || 'N/A',
       subtitle: `${formatCompactNumber(kpis.biggest_opportunity_volume)} volume`,
-      icon: <Zap className="w-6 h-6" />,
-      gradient: isCompetitor
-        ? 'linear-gradient(135deg, #EC4899 0%, #DB2777 100%)'
-        : 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
-      glowColor: isCompetitor
-        ? 'rgba(236, 72, 153, 0.15)'
-        : 'rgba(139, 92, 246, 0.15)',
-      delay: 0.3,
+      icon: <Zap className="w-4 h-4" />,
+      colorClass: isCompetitor
+        ? 'bg-pink-50 text-pink-600'
+        : 'bg-violet-50 text-violet-600',
+      delay: 0.09,
       tooltipInfo: {
         title: 'Biggest Opportunity',
         description: 'The modifier group with the highest uncaptured volume. Focus on this category for maximum impact.',
