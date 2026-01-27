@@ -5,7 +5,7 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { Compass, Target, Users, TrendingUp, CheckCircle2, XCircle, Tag, TrendingDown } from 'lucide-react';
+import { Compass, Target, Users, TrendingUp, CheckCircle2, XCircle, Tag, TrendingDown, Layers } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { BrandPicker } from '../components/common/BrandPicker';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
@@ -14,12 +14,14 @@ import { OpportunityKPICards } from '../components/dashboard/OpportunityKPICards
 import { OpportunityBarChart } from '../components/dashboard/OpportunityBarChart';
 import { DataExplorer } from '../components/dashboard/DataExplorer';
 import { ModifierGroupDrawer } from '../components/dashboard/ModifierGroupDrawer';
+import { CategoryDetailDrawer } from '../components/dashboard/CategoryDetailDrawer';
 import { useApiWithParam } from '../hooks/useApi';
 import { useMarketConfig } from '../contexts/MarketConfigContext';
 import { getCategoryOpportunities, getCompetitorBrandedOpportunities } from '../api/endpoints';
 import { formatNumber, formatCompactNumber, formatPercent } from '../utils/formatters';
 import type {
   CategoryOpportunityDashboard,
+  CategoryOpportunityStats,
   CompetitorBrandedDashboard,
   ModifierGroupOpportunity,
   OpportunityCompetitor,
@@ -51,6 +53,13 @@ export function CategoryOpportunities() {
     modifierGroup: string;
     keywordType: 'nonbranded' | 'competitor_branded';
   }>({ isOpen: false, modifierGroup: '', keywordType: 'nonbranded' });
+
+  const [categoryDrawer, setCategoryDrawer] = useState<{
+    isOpen: boolean;
+    category: string;
+    displayName: string;
+    keywordType: 'nonbranded' | 'competitor_branded';
+  }>({ isOpen: false, category: '', displayName: '', keywordType: 'nonbranded' });
 
   // Fetch non-branded opportunities
   const fetchNonBranded = useCallback(
@@ -238,6 +247,71 @@ export function CategoryOpportunities() {
           {item.top_competitors.length === 0 && (
             <span className="text-xs text-gray-400 italic">No competitors</span>
           )}
+        </div>
+      ),
+    },
+  ];
+
+  // Category table columns
+  const categoryColumns = [
+    {
+      key: 'display_name',
+      header: 'Category',
+      render: (item: CategoryOpportunityStats) => (
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-md bg-emerald-100 flex items-center justify-center flex-shrink-0">
+            <Layers className="w-3.5 h-3.5 text-emerald-600" />
+          </div>
+          <span className="font-medium text-gray-900">{item.display_name}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'capture_rate',
+      header: 'Capture Rate',
+      align: 'right' as const,
+      render: (item: CategoryOpportunityStats) => {
+        const isGood = item.capture_rate >= 50;
+        const isMid = item.capture_rate >= 25;
+        return (
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold ${
+              isGood
+                ? 'bg-emerald-100 text-emerald-700'
+                : isMid
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-rose-100 text-rose-700'
+            }`}
+          >
+            {isGood ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+            {formatPercent(item.capture_rate)}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'total_keywords',
+      header: 'Total',
+      align: 'right' as const,
+      render: (item: CategoryOpportunityStats) => (
+        <div className="space-y-0.5">
+          <div className="font-medium text-gray-900">{formatNumber(item.total_keywords)}</div>
+          <div className="text-xs text-gray-500">{formatCompactNumber(item.total_volume)} vol</div>
+        </div>
+      ),
+    },
+    {
+      key: 'to_capture',
+      header: 'To Capture',
+      align: 'right' as const,
+      render: (item: CategoryOpportunityStats) => (
+        <div className="space-y-0.5">
+          <div className="font-semibold text-amber-600">
+            {formatNumber(item.total_keywords - item.keywords_captured)}
+          </div>
+          <div className="text-xs text-amber-500">
+            {formatCompactNumber(item.total_volume - item.volume_captured)} vol
+          </div>
         </div>
       ),
     },
@@ -432,6 +506,31 @@ export function CategoryOpportunities() {
                   footer={nonBrandedFooter}
                 />
               </div>
+
+              {/* Category Opportunities Table */}
+              {nonBrandedData.category_stats && nonBrandedData.category_stats.length > 0 && (
+                <DataExplorer
+                  title="Opportunities by Category"
+                  description={`${nonBrandedData.category_stats.length} categories - click any row to explore`}
+                  tooltipInfo={{
+                    title: 'Category Opportunities',
+                    description: 'Non-branded keywords grouped by category. Shows opportunity size and capture rate.',
+                  }}
+                  icon={<Layers className="h-5 w-5 text-emerald-600" />}
+                  iconBgClass="bg-emerald-100"
+                  data={nonBrandedData.category_stats}
+                  columns={categoryColumns}
+                  getRowKey={(item) => item.category_name}
+                  onRowClick={(item) => setCategoryDrawer({
+                    isOpen: true,
+                    category: item.category_name,
+                    displayName: item.display_name,
+                    keywordType: 'nonbranded',
+                  })}
+                  emptyMessage="No category data available"
+                  showMoreLabel="categories"
+                />
+              )}
             </motion.div>
           )}
 
@@ -515,6 +614,31 @@ export function CategoryOpportunities() {
                   footer={competitorFooter}
                 />
               </div>
+
+              {/* Competitor Category Opportunities Table */}
+              {competitorData.category_stats && competitorData.category_stats.length > 0 && (
+                <DataExplorer
+                  title="Competitor Branded Opportunities by Category"
+                  description={`${competitorData.category_stats.length} categories - click any row to explore`}
+                  tooltipInfo={{
+                    title: 'Competitor Branded Category Opportunities',
+                    description: 'Competitor-branded keywords grouped by category. Shows capture potential.',
+                  }}
+                  icon={<Layers className="h-5 w-5 text-purple-600" />}
+                  iconBgClass="bg-purple-100"
+                  data={competitorData.category_stats}
+                  columns={categoryColumns}
+                  getRowKey={(item) => item.category_name}
+                  onRowClick={(item) => setCategoryDrawer({
+                    isOpen: true,
+                    category: item.category_name,
+                    displayName: item.display_name,
+                    keywordType: 'competitor_branded',
+                  })}
+                  emptyMessage="No category data available"
+                  showMoreLabel="categories"
+                />
+              )}
             </motion.div>
           )}
 
@@ -546,6 +670,19 @@ export function CategoryOpportunities() {
         brandName={selectedBrand || ''}
         context="opportunity"
         keywordType={drawerState.keywordType}
+      />
+
+      {/* Category Detail Drawer */}
+      <CategoryDetailDrawer
+        isOpen={categoryDrawer.isOpen}
+        onClose={() =>
+          setCategoryDrawer({ isOpen: false, category: '', displayName: '', keywordType: 'nonbranded' })
+        }
+        categoryName={categoryDrawer.category}
+        displayName={categoryDrawer.displayName}
+        brandName={selectedBrand || ''}
+        context="opportunity"
+        keywordType={categoryDrawer.keywordType}
       />
     </div>
   );

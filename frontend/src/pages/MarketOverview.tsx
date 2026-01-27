@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useState, useMemo } from 'react';
-import { Grid, Col } from '@tremor/react';
+import { Grid } from '@tremor/react';
 import { BarChart3, TrendingUp, Layers, Tag, Users } from 'lucide-react';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorDisplay } from '../components/common/ErrorBoundary';
@@ -13,8 +13,8 @@ import { DomainVisibilitySection } from '../components/dashboard/DomainVisibilit
 import { MarketProtectionSnapshot } from '../components/dashboard/MarketProtectionSnapshot';
 import { BiggestLosersTable } from '../components/dashboard/BiggestLosersTable';
 import { DataExplorer } from '../components/dashboard/DataExplorer';
-import { MarketCategoryDrawer } from '../components/dashboard/MarketCategoryDrawer';
-import { MarketModifierDrawer } from '../components/dashboard/MarketModifierDrawer';
+import { CategoryDetailDrawer } from '../components/dashboard/CategoryDetailDrawer';
+import { ModifierGroupDrawer } from '../components/dashboard/ModifierGroupDrawer';
 import { getMarketOverviewDashboard } from '../api/endpoints';
 import { useMarketConfig } from '../contexts/MarketConfigContext';
 import type { MarketOverviewDashboard, CategoryMarketStats, ModifierGroupMarketStats } from '../types';
@@ -88,7 +88,23 @@ export function MarketOverview() {
       key: 'display_name',
       header: 'Category',
       render: (item: CategoryMarketStats) => (
-        <span className="font-medium text-gray-900">{item.display_name}</span>
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-md bg-emerald-100 flex items-center justify-center flex-shrink-0">
+            <Layers className="w-3.5 h-3.5 text-emerald-600" />
+          </div>
+          <span className="font-medium text-gray-900">{item.display_name}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'total_keywords',
+      header: 'Total',
+      align: 'right' as const,
+      render: (item: CategoryMarketStats) => (
+        <div className="space-y-0.5">
+          <div className="font-medium text-gray-900">{item.total_keywords.toLocaleString()}</div>
+          <div className="text-xs text-gray-500">{formatVolume(item.total_volume)} vol</div>
+        </div>
       ),
     },
     {
@@ -96,23 +112,7 @@ export function MarketOverview() {
       header: 'Values',
       align: 'right' as const,
       render: (item: CategoryMarketStats) => (
-        <span className="text-gray-600">{item.unique_values}</span>
-      ),
-    },
-    {
-      key: 'total_keywords',
-      header: 'Keywords',
-      align: 'right' as const,
-      render: (item: CategoryMarketStats) => (
-        <span className="text-gray-600">{item.total_keywords.toLocaleString()}</span>
-      ),
-    },
-    {
-      key: 'total_volume',
-      header: 'Volume',
-      align: 'right' as const,
-      render: (item: CategoryMarketStats) => (
-        <span className="font-medium text-emerald-600">{formatVolume(item.total_volume)}</span>
+        <span className="font-medium text-emerald-600">{item.unique_values}</span>
       ),
     },
   ];
@@ -123,15 +123,23 @@ export function MarketOverview() {
       key: 'modifier_group',
       header: 'Modifier Group',
       render: (item: ModifierGroupMarketStats) => (
-        <span className="font-medium text-gray-900">{item.modifier_group}</span>
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-md bg-purple-100 flex items-center justify-center flex-shrink-0">
+            <Tag className="w-3.5 h-3.5 text-purple-600" />
+          </div>
+          <span className="font-medium text-gray-900">{item.modifier_group}</span>
+        </div>
       ),
     },
     {
       key: 'total_keywords',
-      header: 'Keywords',
+      header: 'Total',
       align: 'right' as const,
       render: (item: ModifierGroupMarketStats) => (
-        <span className="text-gray-600">{item.total_keywords.toLocaleString()}</span>
+        <div className="space-y-0.5">
+          <div className="font-medium text-gray-900">{item.total_keywords.toLocaleString()}</div>
+          <div className="text-xs text-gray-500">{formatVolume(item.total_volume)} vol</div>
+        </div>
       ),
     },
     {
@@ -302,18 +310,20 @@ export function MarketOverview() {
       />
 
       {/* Category Drawer */}
-      <MarketCategoryDrawer
+      <CategoryDetailDrawer
         isOpen={categoryDrawer.isOpen}
         onClose={() => setCategoryDrawer({ isOpen: false, category: '', displayName: '' })}
         categoryName={categoryDrawer.category}
         displayName={categoryDrawer.displayName}
+        context="market"
       />
 
       {/* Modifier Drawer */}
-      <MarketModifierDrawer
+      <ModifierGroupDrawer
         isOpen={modifierDrawer.isOpen}
         onClose={() => setModifierDrawer({ isOpen: false, modifierGroup: '' })}
         modifierGroup={modifierDrawer.modifierGroup}
+        context="market"
       />
     </div>
   );

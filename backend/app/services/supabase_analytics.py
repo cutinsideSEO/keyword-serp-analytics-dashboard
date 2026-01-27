@@ -18,8 +18,10 @@ from app.schemas import (
     BrandProtectionWin,
     CategoryCompetitor,
     CategoryLossStats,
+    CategoryOpportunityBreakdown,
     CategoryOpportunityDashboard,
     CategoryOpportunityKPIs,
+    CategoryOpportunityStats,
     CategoryProtectionBreakdown,
     CategoryValueProtectionStats,
     CompetitorBrandedDashboard,
@@ -405,17 +407,20 @@ class SupabaseAnalyticsService:
                     )
                     for mg in data.get("modifier_groups", []) or []
                 ]
+                category_stats = await self.get_category_opportunity_stats(brand_name, "nonbranded")
                 return CategoryOpportunityDashboard(
                     brand_name=brand_name,
                     brand_domains=data.get("brand_domains") or [],
                     kpis=kpis,
                     modifier_groups=modifier_groups,
+                    category_stats=category_stats,
                 )
             return CategoryOpportunityDashboard(
                 brand_name=brand_name,
                 brand_domains=[],
                 kpis=CategoryOpportunityKPIs(),
                 modifier_groups=[],
+                category_stats=[],
             )
         except Exception as e:
             logger.exception(f"Error getting category opportunities: {e}")
@@ -424,6 +429,7 @@ class SupabaseAnalyticsService:
                 brand_domains=[],
                 kpis=CategoryOpportunityKPIs(),
                 modifier_groups=[],
+                category_stats=[],
             )
 
     async def get_competitor_branded_opportunities(
@@ -483,12 +489,14 @@ class SupabaseAnalyticsService:
                     )
                     for mg in data.get("modifier_groups", []) or []
                 ]
+                category_stats = await self.get_category_opportunity_stats(brand_name, "competitor_branded")
                 return CompetitorBrandedDashboard(
                     brand_name=brand_name,
                     brand_domains=data.get("brand_domains") or [],
                     competitor_brands=data.get("competitor_brands") or [],
                     kpis=kpis,
                     modifier_groups=modifier_groups,
+                    category_stats=category_stats,
                 )
             return CompetitorBrandedDashboard(
                 brand_name=brand_name,
@@ -496,6 +504,7 @@ class SupabaseAnalyticsService:
                 competitor_brands=[],
                 kpis=CategoryOpportunityKPIs(),
                 modifier_groups=[],
+                category_stats=[],
             )
         except Exception as e:
             logger.exception(f"Error getting competitor branded opportunities: {e}")
@@ -505,6 +514,7 @@ class SupabaseAnalyticsService:
                 competitor_brands=[],
                 kpis=CategoryOpportunityKPIs(),
                 modifier_groups=[],
+                category_stats=[],
             )
 
     async def get_modifier_group_opportunity_breakdown(
@@ -562,9 +572,10 @@ class SupabaseAnalyticsService:
                     competitors_by_type[dtype] = [
                         OpportunityCompetitor(
                             domain=c.get("domain", ""),
-                            domain_type=c.get("domain_type"),
+                            domain_type=c.get("domain_type", dtype),
                             wins_count=c.get("wins_count", 0),
-                            wins_volume=c.get("volume_captured", 0),
+                            wins_volume=c.get("wins_volume", 0),
+                            avg_position=c.get("avg_position", 0),
                         )
                         for c in comps or []
                     ]
@@ -708,6 +719,144 @@ class SupabaseAnalyticsService:
         except Exception as e:
             logger.exception(f"Error getting category protection breakdown: {e}")
             return CategoryProtectionBreakdown(
+                category_name=category_name,
+                display_name=category_name,
+            )
+
+    async def get_category_opportunity_stats(
+        self, brand_name: str, keyword_type: str = "nonbranded"
+    ) -> list:
+        """
+        Get per-category summary stats for opportunity dashboard.
+
+        Args:
+            brand_name: Brand to analyze
+            keyword_type: 'nonbranded' or 'competitor_branded'
+
+        Returns:
+            List of CategoryOpportunityStats
+        """
+        try:
+            result = self.client.rpc(
+                "get_category_opportunity_stats",
+                {
+                    "p_market_id": self.market_id,
+                    "p_brand_name": brand_name,
+                    "p_keyword_type": keyword_type,
+                }
+            ).execute()
+            items = unwrap_rpc_list(result.data)
+            return [
+                CategoryOpportunityStats(
+                    category_name=item.get("category_name", ""),
+                    display_name=item.get("display_name", ""),
+                    total_keywords=item.get("total_keywords", 0),
+                    total_volume=item.get("total_volume", 0),
+                    keywords_captured=item.get("keywords_captured", 0),
+                    volume_captured=item.get("volume_captured", 0),
+                    capture_rate=item.get("capture_rate", 0),
+                    unique_values=item.get("unique_values", 0),
+                )
+                for item in items
+            ]
+        except Exception as e:
+            logger.exception(f"Error getting category opportunity stats: {e}")
+            return []
+
+    async def get_category_opportunity_breakdown(
+        self, brand_name: str, category_name: str, keyword_type: str = "nonbranded"
+    ) -> CategoryOpportunityBreakdown:
+        """
+        Get detailed category breakdown for opportunity context.
+
+        Args:
+            brand_name: Brand to analyze
+            category_name: Category to break down
+            keyword_type: 'nonbranded' or 'competitor_branded'
+
+        Returns:
+            CategoryOpportunityBreakdown with capture metrics
+        """
+        try:
+            result = self.client.rpc(
+                "get_category_opportunity_breakdown",
+                {
+                    "p_market_id": self.market_id,
+                    "p_brand_name": brand_name,
+                    "p_category_name": category_name,
+                    "p_keyword_type": keyword_type,
+                    "p_limit": 10,
+                }
+            ).execute()
+
+            data = unwrap_rpc_single(result.data, "get_category_opportunity_breakdown")
+            if data:
+                top_values = [
+                    OpportunityCategoryValue(
+                        category_name=v.get("category_name", category_name),
+                        value=v.get("value", ""),
+                        total_keywords=v.get("total_keywords", 0),
+                        total_volume=v.get("total_volume", 0),
+                        keywords_captured=v.get("keywords_captured", 0),
+                        volume_captured=v.get("volume_captured", 0),
+                        capture_rate=v.get("capture_rate", 0),
+                        top_keywords=[
+                            OpportunityKeywordDetail(
+                                keyword=kw.get("keyword", ""),
+                                volume=kw.get("volume", 0),
+                                winner_domain=kw.get("winner_domain"),
+                                winner_position=kw.get("winner_position"),
+                                brand_position=kw.get("brand_position"),
+                                winner_domain_type=kw.get("winner_domain_type"),
+                            )
+                            for kw in v.get("top_keywords", []) or []
+                        ],
+                    )
+                    for v in data.get("top_values", []) or []
+                ]
+                competitors_by_type = {}
+                for dtype, comps in (data.get("competitors_by_type") or {}).items():
+                    competitors_by_type[dtype] = [
+                        OpportunityCompetitor(
+                            domain=c.get("domain", ""),
+                            domain_type=c.get("domain_type", dtype),
+                            wins_count=c.get("wins_count", 0),
+                            wins_volume=c.get("wins_volume", 0),
+                            avg_position=c.get("avg_position", 0),
+                        )
+                        for c in comps or []
+                    ]
+                example_keywords = [
+                    OpportunityKeywordDetail(
+                        keyword=kw.get("keyword", ""),
+                        volume=kw.get("volume", 0),
+                        winner_domain=kw.get("winner_domain"),
+                        winner_position=kw.get("winner_position"),
+                        brand_position=kw.get("brand_position"),
+                        winner_domain_type=kw.get("winner_domain_type"),
+                    )
+                    for kw in data.get("example_keywords", []) or []
+                ]
+                return CategoryOpportunityBreakdown(
+                    category_name=data.get("category_name", category_name),
+                    display_name=data.get("display_name", category_name),
+                    total_keywords=data.get("total_keywords", 0),
+                    total_volume=data.get("total_volume", 0),
+                    keywords_captured=data.get("keywords_captured", 0),
+                    volume_captured=data.get("volume_captured", 0),
+                    capture_rate=data.get("capture_rate", 0),
+                    avg_brand_position=data.get("avg_brand_position"),
+                    top_values=top_values,
+                    competitors_by_type=competitors_by_type,
+                    example_keywords=example_keywords,
+                )
+            return CategoryOpportunityBreakdown(
+                category_name=category_name,
+                display_name=category_name,
+            )
+        except Exception as e:
+            logger.exception(f"Error getting category opportunity breakdown: {e}")
+            return CategoryOpportunityBreakdown(
                 category_name=category_name,
                 display_name=category_name,
             )

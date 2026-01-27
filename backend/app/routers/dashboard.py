@@ -17,6 +17,7 @@ from app.schemas import (
     BrandProtectionSummary,
     BrandProtectionWin,
     CategoryLossStats,
+    CategoryOpportunityBreakdown,
     CategoryOpportunityDashboard,
     CategoryProtectionBreakdown,
     CompetitorBrandedDashboard,
@@ -372,3 +373,30 @@ async def get_modifier_group_opportunity_breakdown(
     effective_market_id = market_id or get_current_market_id()
     service = SupabaseAnalyticsService(market_id=effective_market_id)
     return await service.get_modifier_group_opportunity_breakdown(brand, modifier_group, keyword_type)
+
+
+@router.get(
+    "/category-opportunity-breakdown/{category}",
+    response_model=CategoryOpportunityBreakdown,
+)
+async def get_category_opportunity_breakdown(
+    category: str,
+    brand: str = Query(..., description="Brand name to analyze"),
+    keyword_type: str = Query("nonbranded", description="Keyword type: nonbranded or competitor_branded"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
+) -> CategoryOpportunityBreakdown:
+    """
+    Get detailed category breakdown for opportunity context.
+
+    Args:
+        category: Category name to break down
+        brand: Brand name to analyze
+        keyword_type: Type of keywords (nonbranded or competitor_branded)
+        market_id: Market ID (optional)
+
+    Returns:
+        Detailed category opportunity breakdown with capture metrics
+    """
+    effective_market_id = market_id or get_current_market_id()
+    service = SupabaseAnalyticsService(market_id=effective_market_id)
+    return await service.get_category_opportunity_breakdown(brand, category, keyword_type)

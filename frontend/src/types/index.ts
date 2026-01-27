@@ -447,11 +447,23 @@ export interface CategoryOpportunityKPIs {
   biggest_opportunity_volume: number;
 }
 
+export interface CategoryOpportunityStats {
+  category_name: string;
+  display_name: string;
+  total_keywords: number;
+  total_volume: number;
+  keywords_captured: number;
+  volume_captured: number;
+  capture_rate: number;
+  unique_values: number;
+}
+
 export interface CategoryOpportunityDashboard {
   brand_name: string;
   brand_domains: string[];
   kpis: CategoryOpportunityKPIs;
   modifier_groups: ModifierGroupOpportunity[];
+  category_stats: CategoryOpportunityStats[];
 }
 
 // =============================================================================
@@ -491,12 +503,27 @@ export interface ModifierGroupOpportunityBreakdown {
   example_keywords: OpportunityKeywordDetail[];
 }
 
+export interface CategoryOpportunityBreakdown {
+  category_name: string;
+  display_name: string;
+  total_keywords: number;
+  total_volume: number;
+  keywords_captured: number;
+  volume_captured: number;
+  capture_rate: number;
+  avg_brand_position: number | null;
+  top_values: OpportunityCategoryValue[];
+  competitors_by_type: Record<string, OpportunityCompetitor[]>;
+  example_keywords: OpportunityKeywordDetail[];
+}
+
 export interface CompetitorBrandedDashboard {
   brand_name: string;
   brand_domains: string[];
   competitor_brands: string[];
   kpis: CategoryOpportunityKPIs;
   modifier_groups: ModifierGroupOpportunity[];
+  category_stats: CategoryOpportunityStats[];
 }
 
 // =============================================================================

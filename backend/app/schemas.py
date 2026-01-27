@@ -816,6 +816,19 @@ class CategoryOpportunityKPIs(BaseSchema):
     biggest_opportunity_volume: int = 0
 
 
+class CategoryOpportunityStats(BaseSchema):
+    """Per-category stats for opportunity dashboard."""
+
+    category_name: str
+    display_name: str
+    total_keywords: int = 0
+    total_volume: int = 0
+    keywords_captured: int = 0
+    volume_captured: int = 0
+    capture_rate: float = 0.0
+    unique_values: int = 0
+
+
 class CategoryOpportunityDashboard(BaseSchema):
     """Complete Category Opportunities dashboard data."""
 
@@ -823,6 +836,7 @@ class CategoryOpportunityDashboard(BaseSchema):
     brand_domains: List[str] = Field(default_factory=list)
     kpis: CategoryOpportunityKPIs
     modifier_groups: List[ModifierGroupOpportunity] = Field(default_factory=list)
+    category_stats: List[CategoryOpportunityStats] = Field(default_factory=list)
 
 
 # =============================================================================
@@ -875,6 +889,28 @@ class ModifierGroupOpportunityBreakdown(BaseSchema):
     example_keywords: List[OpportunityKeywordDetail] = Field(default_factory=list)
 
 
+class CategoryOpportunityBreakdown(BaseSchema):
+    """Full breakdown for a category in opportunity context."""
+
+    category_name: str
+    display_name: str
+    total_keywords: int = 0
+    total_volume: int = 0
+    keywords_captured: int = 0
+    volume_captured: int = 0
+    capture_rate: float = 0.0
+    avg_brand_position: Optional[float] = None
+
+    # Top category values with detailed stats
+    top_values: List[OpportunityCategoryValue] = Field(default_factory=list)
+
+    # Competitors grouped by domain type
+    competitors_by_type: Dict[str, List[OpportunityCompetitor]] = Field(default_factory=dict)
+
+    # Detailed keyword examples
+    example_keywords: List[OpportunityKeywordDetail] = Field(default_factory=list)
+
+
 class CompetitorBrandedDashboard(BaseSchema):
     """Dashboard for competitor branded keywords analysis."""
 
@@ -883,6 +919,7 @@ class CompetitorBrandedDashboard(BaseSchema):
     competitor_brands: List[str] = Field(default_factory=list)  # List of competitor brand names found
     kpis: CategoryOpportunityKPIs
     modifier_groups: List[ModifierGroupOpportunity] = Field(default_factory=list)
+    category_stats: List[CategoryOpportunityStats] = Field(default_factory=list)
 
 
 # Update forward references

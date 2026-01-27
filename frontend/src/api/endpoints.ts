@@ -34,6 +34,7 @@ import type {
   ModifierGroupBreakdown,
   // Category Opportunities types
   CategoryOpportunityDashboard,
+  CategoryOpportunityBreakdown,
   CompetitorBrandedDashboard,
   ModifierGroupOpportunityBreakdown,
   // Home Dashboard types
@@ -404,6 +405,23 @@ export async function getModifierGroupOpportunityBreakdown(
       params: {
         brand,
         modifier_group: modifierGroup,
+        keyword_type: keywordType,
+      },
+    }
+  );
+  return response.data;
+}
+
+export async function getCategoryOpportunityBreakdown(
+  brand: string,
+  categoryName: string,
+  keywordType: 'nonbranded' | 'competitor_branded'
+): Promise<CategoryOpportunityBreakdown> {
+  const response = await apiClient.get<CategoryOpportunityBreakdown>(
+    `/dashboard/category-opportunity-breakdown/${encodeURIComponent(categoryName)}`,
+    {
+      params: {
+        brand,
         keyword_type: keywordType,
       },
     }
