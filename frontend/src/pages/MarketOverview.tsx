@@ -241,10 +241,12 @@ export function MarketOverview() {
       {/* Brand Protection Health */}
       <section>
         <h2 className="text-lg font-semibold mb-4">Market Brand Protection</h2>
-        <MarketProtectionSnapshot
-          kpis={data.protection_kpis ?? {}}
-          lossDistribution={data.loss_distribution ?? []}
-        />
+        {data.protection_kpis && (
+          <MarketProtectionSnapshot
+            kpis={data.protection_kpis}
+            lossDistribution={data.loss_distribution ?? []}
+          />
+        )}
       </section>
 
       {/* Biggest Losers */}

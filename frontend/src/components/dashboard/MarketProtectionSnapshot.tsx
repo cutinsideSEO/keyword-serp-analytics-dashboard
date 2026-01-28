@@ -24,7 +24,7 @@ export function MarketProtectionSnapshot({ kpis, lossDistribution }: MarketProte
     return { label: 'At Risk', color: 'red' };
   };
 
-  const healthStatus = getHealthStatus(kpis.average_win_rate);
+  const healthStatus = getHealthStatus(kpis.average_win_rate ?? 0);
 
   // Helper to get combined class for domain type
   const getDomainTypeClasses = (domainType: string): string => {
@@ -50,10 +50,10 @@ export function MarketProtectionSnapshot({ kpis, lossDistribution }: MarketProte
               <p className="text-sm text-muted-foreground">Average Win Rate</p>
             </div>
             <div className="text-2xl font-semibold text-emerald-600 mt-2">
-              {kpis.average_win_rate.toFixed(1)}%
+              {(kpis.average_win_rate ?? 0).toFixed(1)}%
             </div>
             <p className="text-sm text-gray-500 mt-1">
-              across {kpis.total_brands} brands
+              across {kpis.total_brands ?? 0} brands
             </p>
             <div className="mt-3 pt-3 border-t border-gray-200">
               <span className={`text-xs font-medium px-2 py-1 rounded-full bg-${healthStatus.color}-50 text-${healthStatus.color}-600`}>
@@ -77,17 +77,17 @@ export function MarketProtectionSnapshot({ kpis, lossDistribution }: MarketProte
               <p className="text-sm text-muted-foreground">Volume at Risk</p>
             </div>
             <div className="text-2xl font-semibold text-red-600 mt-2">
-              {(kpis.total_volume_losing / 1000000).toFixed(1)}M
+              {((kpis.total_volume_losing ?? 0) / 1000000).toFixed(1)}M
             </div>
             <p className="text-sm text-gray-500 mt-1">
-              {kpis.total_keywords_losing.toLocaleString()} keywords
+              {(kpis.total_keywords_losing ?? 0).toLocaleString()} keywords
             </p>
             <div className="mt-3">
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className="bg-red-500 h-2 rounded-full"
                   style={{
-                    width: `${(kpis.total_volume_losing / kpis.total_branded_volume) * 100}%`,
+                    width: `${kpis.total_branded_volume ? ((kpis.total_volume_losing ?? 0) / kpis.total_branded_volume) * 100 : 0}%`,
                   }}
                 />
               </div>
@@ -109,14 +109,14 @@ export function MarketProtectionSnapshot({ kpis, lossDistribution }: MarketProte
               <p className="text-sm text-muted-foreground">Median Win Rate</p>
             </div>
             <div className="text-2xl font-semibold text-blue-600 mt-2">
-              {kpis.median_win_rate.toFixed(1)}%
+              {(kpis.median_win_rate ?? 0).toFixed(1)}%
             </div>
             <p className="text-sm text-gray-500 mt-1">
               50% of brands
             </p>
             <div className="mt-3 pt-3 border-t border-gray-200">
               <p className="text-xs text-gray-600">
-                {kpis.median_win_rate < kpis.average_win_rate
+                {(kpis.median_win_rate ?? 0) < (kpis.average_win_rate ?? 0)
                   ? 'Few brands dominate'
                   : 'Balanced distribution'}
               </p>
@@ -138,14 +138,14 @@ export function MarketProtectionSnapshot({ kpis, lossDistribution }: MarketProte
               <p className="text-sm text-muted-foreground">Total Brands</p>
             </div>
             <div className="text-2xl font-semibold text-purple-600 mt-2">
-              {kpis.total_brands}
+              {kpis.total_brands ?? 0}
             </div>
             <p className="text-sm text-gray-500 mt-1">
-              {kpis.total_branded_keywords.toLocaleString()} keywords
+              {(kpis.total_branded_keywords ?? 0).toLocaleString()} keywords
             </p>
             <div className="mt-3 pt-3 border-t border-gray-200">
               <p className="text-xs text-gray-600">
-                Avg {Math.round(kpis.total_branded_keywords / kpis.total_brands)} kw/brand
+                Avg {kpis.total_brands ? Math.round((kpis.total_branded_keywords ?? 0) / kpis.total_brands) : 0} kw/brand
               </p>
             </div>
           </div>
@@ -182,11 +182,11 @@ export function MarketProtectionSnapshot({ kpis, lossDistribution }: MarketProte
                     className={`text-center p-4 rounded-lg border ${colorClass} transition-all hover:border-gray-300`}
                   >
                     <div className="text-2xl font-semibold mb-1">
-                      {dist.percentage_of_losses.toFixed(1)}%
+                      {(dist.percentage_of_losses ?? 0).toFixed(1)}%
                     </div>
                     <div className="text-sm font-medium mb-2">{dist.domain_type}</div>
                     <div className="text-xs opacity-75">
-                      {(dist.loss_volume / 1000).toFixed(0)}K volume
+                      {((dist.loss_volume ?? 0) / 1000).toFixed(0)}K volume
                     </div>
                     <div className="mt-2 pt-2 border-t border-current opacity-50">
                       <div className="text-xs">

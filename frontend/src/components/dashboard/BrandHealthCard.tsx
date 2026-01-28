@@ -97,9 +97,9 @@ export function BrandHealthCard({
 
       {/* Stats */}
       <div className="flex items-center gap-4 text-xs text-gray-500">
-        <span>{winRateKeywords.toFixed(0)}% keywords</span>
+        <span>{(winRateKeywords ?? 0).toFixed(0)}% keywords</span>
         <span className="text-gray-300">|</span>
-        <span>{winRateVolume.toFixed(0)}% volume</span>
+        <span>{(winRateVolume ?? 0).toFixed(0)}% volume</span>
       </div>
 
       {/* Action hint */}

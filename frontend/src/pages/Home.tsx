@@ -32,10 +32,10 @@ export function Home() {
   );
 
   // Health score comes from backend now
-  const healthScore = data?.kpis.health_score ?? 0;
+  const healthScore = data?.kpis?.health_score ?? 0;
 
   // Top threat from KPIs
-  const hasTopThreat = data?.kpis.top_threat_domain != null;
+  const hasTopThreat = data?.kpis?.top_threat_domain != null;
 
   // Quick action cards
   const quickActions = [
@@ -172,7 +172,7 @@ export function Home() {
                 )}
               </div>
               <div className="text-right">
-                <div className="text-5xl font-bold text-gray-900">{data.kpis.health_grade}</div>
+                <div className="text-5xl font-bold text-gray-900">{data.kpis?.health_grade ?? '—'}</div>
                 <p className="text-sm text-muted-foreground">brand health grade</p>
               </div>
             </div>
@@ -193,28 +193,28 @@ export function Home() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <BrandHealthCard
               score={healthScore}
-              winRateKeywords={data.kpis.win_rate_keywords}
-              winRateVolume={data.kpis.win_rate_volume}
+              winRateKeywords={data.kpis?.win_rate_keywords ?? 0}
+              winRateVolume={data.kpis?.win_rate_volume ?? 0}
               onClick={() => navigate('/protect')}
             />
             <OpportunityCard
-              volume={data.kpis.volume_at_risk}
-              keywords={data.kpis.keywords_at_risk}
+              volume={data.kpis?.volume_at_risk ?? 0}
+              keywords={data.kpis?.keywords_at_risk ?? 0}
               onClick={() => navigate('/protect')}
             />
             {hasTopThreat && (
               <ThreatCard
-                domain={data.kpis.top_threat_domain!}
-                domainType={data.kpis.top_threat_domain_type ?? undefined}
-                keywords={data.kpis.top_threat_keywords}
-                volume={data.kpis.top_threat_volume}
+                domain={data.kpis!.top_threat_domain!}
+                domainType={data.kpis?.top_threat_domain_type ?? undefined}
+                keywords={data.kpis?.top_threat_keywords ?? 0}
+                volume={data.kpis?.top_threat_volume ?? 0}
                 onClick={() => navigate('/protect')}
               />
             )}
           </div>
 
           {/* Insights Section */}
-          {data.kpis.keywords_at_risk > 0 && (
+          {(data.kpis?.keywords_at_risk ?? 0) > 0 && (
             <div className="space-y-3">
               <h3 className="text-lg font-semibold text-gray-900">Top Insights</h3>
 
@@ -222,20 +222,20 @@ export function Home() {
                 <InsightCard
                   priority="critical"
                   title="Brand health is critical"
-                  description={`You're winning only ${data.kpis.win_rate_keywords.toFixed(0)}% of your branded keywords.`}
-                  volume={data.kpis.volume_at_risk}
-                  keywords={data.kpis.keywords_at_risk}
+                  description={`You're winning only ${(data.kpis?.win_rate_keywords ?? 0).toFixed(0)}% of your branded keywords.`}
+                  volume={data.kpis?.volume_at_risk ?? 0}
+                  keywords={data.kpis?.keywords_at_risk ?? 0}
                   onAction={() => navigate('/protect')}
                   actionLabel="View Losses"
                 />
               )}
 
-              {hasTopThreat && data.kpis.top_threat_keywords > 10 && (
+              {hasTopThreat && (data.kpis?.top_threat_keywords ?? 0) > 10 && (
                 <InsightCard
                   priority="warning"
-                  title={`${data.kpis.top_threat_domain} is taking your traffic`}
-                  description={`This ${data.kpis.top_threat_domain_type || 'competitor'} is winning ${data.kpis.top_threat_keywords} of your branded keywords.`}
-                  volume={data.kpis.top_threat_volume}
+                  title={`${data.kpis?.top_threat_domain} is taking your traffic`}
+                  description={`This ${data.kpis?.top_threat_domain_type || 'competitor'} is winning ${data.kpis?.top_threat_keywords ?? 0} of your branded keywords.`}
+                  volume={data.kpis?.top_threat_volume ?? 0}
                   onAction={() => navigate('/protect')}
                   actionLabel="Analyze"
                 />

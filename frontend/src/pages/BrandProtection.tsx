@@ -65,9 +65,9 @@ export function BrandProtection() {
 
   // Calculate brand health score
   const calculateHealthScore = () => {
-    if (!data) return 0;
-    const keywordScore = data.kpis.win_rate_keywords;
-    const volumeScore = data.kpis.win_rate_volume;
+    if (!data?.kpis) return 0;
+    const keywordScore = data.kpis.win_rate_keywords ?? 0;
+    const volumeScore = data.kpis.win_rate_volume ?? 0;
     return Math.round(keywordScore * 0.6 + volumeScore * 0.4);
   };
 
@@ -332,12 +332,12 @@ export function BrandProtection() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <BrandHealthCard
               score={healthScore}
-              winRateKeywords={data.kpis.win_rate_keywords}
-              winRateVolume={data.kpis.win_rate_volume}
+              winRateKeywords={data.kpis?.win_rate_keywords ?? 0}
+              winRateVolume={data.kpis?.win_rate_volume ?? 0}
             />
             <OpportunityCard
-              volume={data.kpis.volume_losing}
-              keywords={data.kpis.keywords_losing}
+              volume={data.kpis?.volume_losing ?? 0}
+              keywords={data.kpis?.keywords_losing ?? 0}
             />
             {topThreat ? (
               <ThreatCard
@@ -363,9 +363,9 @@ export function BrandProtection() {
             <InsightCard
               priority="critical"
               title="Brand health is critical"
-              description={`You're winning only ${data.kpis.win_rate_keywords.toFixed(0)}% of your branded keywords. Focus on the categories below to reclaim lost positions.`}
-              volume={data.kpis.volume_losing}
-              keywords={data.kpis.keywords_losing}
+              description={`You're winning only ${(data.kpis?.win_rate_keywords ?? 0).toFixed(0)}% of your branded keywords. Focus on the categories below to reclaim lost positions.`}
+              volume={data.kpis?.volume_losing ?? 0}
+              keywords={data.kpis?.keywords_losing ?? 0}
             />
           )}
 
