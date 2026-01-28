@@ -120,7 +120,7 @@ export function DomainTypesChart({ domainTypes, brandName }: DomainTypesChartPro
                     <span className="text-gray-500">{dt.loss_count} kw</span>
                     <span className="text-gray-400">&bull;</span>
                     <span className="font-medium text-red-600">
-                      {dt.percentage_of_losses.toFixed(1)}%
+                      {(dt.percentage_of_losses ?? 0).toFixed(1)}%
                     </span>
                   </div>
                 </div>

@@ -143,7 +143,7 @@ export function DomainVisibilitySection({
           <div className="text-center">
             <div className="text-xs text-gray-500 mb-1">Avg Position</div>
             <div className="font-semibold text-gray-900">
-              #{(topDomains.reduce((sum, d) => sum + (d.avg_position || 0), 0) / topDomains.length).toFixed(1)}
+              #{(topDomains.reduce((sum, d) => sum + (d.avg_position || 0), 0) / (topDomains.length || 1)).toFixed(1)}
             </div>
           </div>
         </motion.div>

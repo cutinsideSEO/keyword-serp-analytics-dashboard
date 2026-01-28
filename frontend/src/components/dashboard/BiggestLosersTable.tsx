@@ -99,14 +99,14 @@ export function BiggestLosersTable({ data, limit = 10 }: BiggestLosersTableProps
                       {brand.keywords_lost.toLocaleString()}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      {((brand.keywords_lost / brand.total_keywords) * 100).toFixed(1)}% of total
+                      {((brand.keywords_lost / (brand.total_keywords || 1)) * 100).toFixed(1)}% of total
                     </div>
                   </td>
 
                   {/* Volume Lost */}
                   <td className="py-4 px-4 text-right">
                     <div className="font-semibold text-red-600 text-lg">
-                      {(brand.volume_lost / 1000).toFixed(0)}K
+                      {((brand.volume_lost ?? 0) / 1000).toFixed(0)}K
                     </div>
                     <div className="text-xs text-gray-500 mt-1">search volume</div>
                   </td>
@@ -118,7 +118,7 @@ export function BiggestLosersTable({ data, limit = 10 }: BiggestLosersTableProps
                         brand.win_rate
                       )}`}
                     >
-                      {brand.win_rate.toFixed(1)}%
+                      {(brand.win_rate ?? 0).toFixed(1)}%
                     </div>
                   </td>
 
@@ -138,7 +138,7 @@ export function BiggestLosersTable({ data, limit = 10 }: BiggestLosersTableProps
                           </span>
                           {/* Tooltip on hover */}
                           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10 transition-opacity">
-                            {mg.loss_count} keywords, {(mg.loss_volume / 1000).toFixed(0)}K volume
+                            {mg.loss_count} keywords, {((mg.loss_volume ?? 0) / 1000).toFixed(0)}K volume
                           </div>
                         </div>
                       ))}
@@ -172,13 +172,13 @@ export function BiggestLosersTable({ data, limit = 10 }: BiggestLosersTableProps
         <div className="text-center p-4 bg-gray-50 rounded-lg">
           <div className="text-xs text-gray-500 mb-1">Total Volume at Risk</div>
           <div className="text-2xl font-semibold text-gray-900">
-            {(topLosers.reduce((sum, b) => sum + b.volume_lost, 0) / 1000000).toFixed(2)}M
+            {(topLosers.reduce((sum, b) => sum + (b.volume_lost ?? 0), 0) / 1000000).toFixed(2)}M
           </div>
         </div>
         <div className="text-center p-4 bg-gray-50 rounded-lg">
           <div className="text-xs text-gray-500 mb-1">Average Win Rate</div>
           <div className="text-2xl font-semibold text-gray-900">
-            {(topLosers.reduce((sum, b) => sum + b.win_rate, 0) / topLosers.length).toFixed(1)}%
+            {(topLosers.reduce((sum, b) => sum + (b.win_rate ?? 0), 0) / (topLosers.length || 1)).toFixed(1)}%
           </div>
         </div>
       </motion.div>

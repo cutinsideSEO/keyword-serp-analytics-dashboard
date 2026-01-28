@@ -138,12 +138,12 @@ function BrandHero({
             />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className={`text-lg font-semibold ${rateColor}`}>{primaryRate.toFixed(0)}%</span>
+            <span className={`text-lg font-semibold ${rateColor}`}>{(primaryRate ?? 0).toFixed(0)}%</span>
           </div>
         </div>
         <div className="flex-1">
           <div className="text-sm font-medium text-gray-500 mb-1">{primaryLabel}</div>
-          <div className={`text-2xl font-semibold ${rateColor}`}>{primaryRate.toFixed(1)}%</div>
+          <div className={`text-2xl font-semibold ${rateColor}`}>{(primaryRate ?? 0).toFixed(1)}%</div>
           <div className="text-sm text-gray-500 mt-1">
             {formatNumber(metrics.total_keywords)} keywords &middot;{' '}
             {formatCompactNumber(metrics.total_volume)} volume

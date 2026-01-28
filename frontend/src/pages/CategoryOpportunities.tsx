@@ -227,7 +227,7 @@ export function CategoryOpportunities() {
                 : 'bg-gray-100 text-gray-700'
             }`}
           >
-            #{item.avg_brand_position.toFixed(1)}
+            #{(item.avg_brand_position ?? 0).toFixed(1)}
           </span>
         );
       },

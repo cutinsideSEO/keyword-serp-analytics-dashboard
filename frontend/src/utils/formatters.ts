@@ -6,7 +6,7 @@
  * Format a number with commas as thousands separators.
  */
 export function formatNumber(value: number): string {
-  return new Intl.NumberFormat('en-US').format(value);
+  return new Intl.NumberFormat('en-US').format(value ?? 0);
 }
 
 /**
@@ -16,14 +16,14 @@ export function formatCompactNumber(value: number): string {
   return new Intl.NumberFormat('en-US', {
     notation: 'compact',
     compactDisplay: 'short',
-  }).format(value);
+  }).format(value ?? 0);
 }
 
 /**
  * Format a percentage value.
  */
 export function formatPercent(value: number, decimals = 1): string {
-  return `${value.toFixed(decimals)}%`;
+  return `${(value ?? 0).toFixed(decimals)}%`;
 }
 
 /**

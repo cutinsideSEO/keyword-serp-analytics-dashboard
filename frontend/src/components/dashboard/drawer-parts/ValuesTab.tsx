@@ -44,7 +44,7 @@ export function ProtectionValuesTab({ values }: { values: CategoryValueProtectio
             <div className="flex items-center justify-between mb-2">
               <span className="font-semibold text-gray-900">{value.value}</span>
               <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${rateColor}`}>
-                {value.win_rate.toFixed(0)}% win rate
+                {(value.win_rate ?? 0).toFixed(0)}% win rate
               </span>
             </div>
 
@@ -126,7 +126,7 @@ export function ProtectionTagsTab({ tags }: { tags: TagProtectionStats[] }) {
                 <span className="font-medium text-gray-900 text-sm">{tag.tag}</span>
               </div>
               <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${rateColor}`}>
-                {tag.win_rate.toFixed(0)}%
+                {(tag.win_rate ?? 0).toFixed(0)}%
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -263,7 +263,7 @@ export function MarketValuesTab({ values }: { values: CategoryValueMarketStats[]
             </div>
             <div className="flex items-center justify-between text-xs text-gray-500">
               <span>{value.keyword_count.toLocaleString()} keywords</span>
-              <span>{percentage.toFixed(0)}% of category</span>
+              <span>{(percentage ?? 0).toFixed(0)}% of category</span>
             </div>
 
             {value.example_keywords && value.example_keywords.length > 0 && (

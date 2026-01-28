@@ -100,7 +100,7 @@ function BrandCompetitorsView({
                         : 'bg-gray-100 text-gray-700'
                     }`}
                   >
-                    #{comp.avg_position.toFixed(1)}
+                    #{(comp.avg_position ?? 0).toFixed(1)}
                   </span>
                 </div>
               ))}

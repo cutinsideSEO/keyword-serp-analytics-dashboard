@@ -121,7 +121,7 @@ export function InfluentialVoicesTable({
                   </td>
                   <td className="py-4 px-4 text-right">
                     <span className="inline-flex items-center px-3 py-1.5 rounded-md bg-gray-50 text-gray-600 text-sm font-medium">
-                      #{voice.avg_position.toFixed(1)}
+                      #{(voice.avg_position ?? 0).toFixed(1)}
                     </span>
                   </td>
                   <td className="py-4 px-4 text-right">

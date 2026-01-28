@@ -113,7 +113,7 @@ export function BrandProtection() {
             ) : (
               <XCircle className="w-3 h-3" />
             )}
-            {item.win_rate.toFixed(0)}%
+            {(item.win_rate ?? 0).toFixed(0)}%
           </span>
         );
       },
@@ -186,7 +186,7 @@ export function BrandProtection() {
             ) : (
               <XCircle className="w-3 h-3" />
             )}
-            {item.win_rate.toFixed(0)}%
+            {(item.win_rate ?? 0).toFixed(0)}%
           </span>
         );
       },
