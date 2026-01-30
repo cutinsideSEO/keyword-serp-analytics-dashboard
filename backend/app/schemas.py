@@ -922,6 +922,79 @@ class CompetitorBrandedDashboard(BaseSchema):
     category_stats: List[CategoryOpportunityStats] = Field(default_factory=list)
 
 
+# =============================================================================
+# Heatmap Schemas (Two-Category Cross-Tabulation)
+# =============================================================================
+
+
+class HeatmapCell(BaseSchema):
+    """Single cell in the heatmap grid representing a (row_value, col_value) combination."""
+
+    row_value: str
+    col_value: str
+    total_keywords: int = 0
+    total_volume: int = 0
+    volume_captured: int = 0
+    volume_uncaptured: int = 0
+    capture_rate: float = 0.0
+
+
+class HeatmapResponse(BaseSchema):
+    """Response for modifier group heatmap cross-tabulation."""
+
+    modifier_group: str
+    row_category: str  # Category name for rows (e.g., "bicycle_type")
+    row_category_display: str  # Display name (e.g., "Bicycle Type")
+    col_category: str  # Category name for columns (e.g., "parts")
+    col_category_display: str  # Display name (e.g., "Parts")
+    row_values: List[str] = Field(default_factory=list)  # Ordered list of row values
+    col_values: List[str] = Field(default_factory=list)  # Ordered list of column values
+    cells: List[HeatmapCell] = Field(default_factory=list)  # All non-empty cells
+    max_volume_uncaptured: int = 0  # For color scaling
+    total_combinations: int = 0  # Total number of cells with data
+
+
+# =============================================================================
+# Combination Keywords Schemas (Heatmap Cell Drill-Down)
+# =============================================================================
+
+
+class CombinationKeywordRanker(BaseSchema):
+    """A domain in the top 5 ranking positions for a keyword."""
+
+    rank: int
+    domain: str
+    domain_type: str = "3rd Party"
+
+
+class CombinationKeyword(BaseSchema):
+    """Keyword with full ranking info for combination drill-down."""
+
+    keyword_id: int
+    keyword: str
+    volume: int
+    brand_position: Optional[int] = None
+    is_captured: bool = False
+    winner_domain: Optional[str] = None
+    winner_domain_type: Optional[str] = None
+    top_5: List[CombinationKeywordRanker] = Field(default_factory=list)
+
+
+class CombinationKeywordsResponse(BaseSchema):
+    """Response for combination keywords drill-down from heatmap cell."""
+
+    row_value: str
+    col_value: str
+    row_category: str
+    col_category: str
+    total_keywords: int = 0
+    total_volume: int = 0
+    volume_captured: int = 0
+    volume_uncaptured: int = 0
+    capture_rate: float = 0.0
+    keywords: List[CombinationKeyword] = Field(default_factory=list)
+
+
 # Update forward references
 KeywordWithSerp.model_rebuild()
 BrandWithDomains.model_rebuild()

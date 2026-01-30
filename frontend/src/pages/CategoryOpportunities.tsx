@@ -5,7 +5,7 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { Compass, Target, Users, TrendingUp, CheckCircle2, XCircle, Tag, TrendingDown, Layers } from 'lucide-react';
+import { Compass, Target, Users, TrendingUp, CheckCircle2, XCircle, Tag, TrendingDown, Layers, Grid3X3 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { BrandPicker } from '../components/common/BrandPicker';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
@@ -15,11 +15,14 @@ import { OpportunityBarChart } from '../components/dashboard/OpportunityBarChart
 import { DataExplorer } from '../components/dashboard/DataExplorer';
 import { ModifierGroupDrawer } from '../components/dashboard/ModifierGroupDrawer';
 import { CategoryDetailDrawer } from '../components/dashboard/CategoryDetailDrawer';
+import { HeatmapModal } from '../components/dashboard/HeatmapModal';
+import { CombinationKeywordsDrawer } from '../components/dashboard/CombinationKeywordsDrawer';
 import { useApiWithParam } from '../hooks/useApi';
 import { usePersistedBrand } from '../hooks/usePersistedBrand';
 import { useMarketConfig } from '../contexts/MarketConfigContext';
 import { getCategoryOpportunities, getCompetitorBrandedOpportunities } from '../api/endpoints';
 import { formatNumber, formatCompactNumber, formatPercent } from '../utils/formatters';
+import { isTwoCategoryGroup, parseModifierGroup } from '../utils/modifierGroup';
 import type {
   CategoryOpportunityDashboard,
   CategoryOpportunityStats,
@@ -61,6 +64,32 @@ export function CategoryOpportunities() {
     displayName: string;
     keywordType: 'nonbranded' | 'competitor_branded';
   }>({ isOpen: false, category: '', displayName: '', keywordType: 'nonbranded' });
+
+  // Heatmap modal state (for two-category modifier groups)
+  const [heatmapState, setHeatmapState] = useState<{
+    isOpen: boolean;
+    modifierGroup: string;
+    keywordType: 'nonbranded' | 'competitor_branded';
+  }>({ isOpen: false, modifierGroup: '', keywordType: 'nonbranded' });
+
+  // Combination keywords drawer state (drill-down from heatmap cell)
+  const [combinationState, setCombinationState] = useState<{
+    isOpen: boolean;
+    modifierGroup: string;
+    rowCategory: string;
+    rowValue: string;
+    colCategory: string;
+    colValue: string;
+    keywordType: 'nonbranded' | 'competitor_branded';
+  }>({
+    isOpen: false,
+    modifierGroup: '',
+    rowCategory: '',
+    rowValue: '',
+    colCategory: '',
+    colValue: '',
+    keywordType: 'nonbranded',
+  });
 
   // Fetch non-branded opportunities
   const fetchNonBranded = useCallback(
@@ -121,19 +150,42 @@ export function CategoryOpportunities() {
     });
   };
 
+  // Handle "View Heatmap" button click from drawer
+  const handleViewHeatmap = () => {
+    // Transfer current drawer state to heatmap state and open heatmap modal
+    setHeatmapState({
+      isOpen: true,
+      modifierGroup: drawerState.modifierGroup,
+      keywordType: drawerState.keywordType,
+    });
+    // Close the drawer when opening heatmap
+    setDrawerState({ isOpen: false, modifierGroup: '', keywordType: 'nonbranded' });
+  };
+
   // Modifier group table columns (shared by both non-branded and competitor tables)
   const modifierColumns = [
     {
       key: 'modifier_group',
       header: 'Modifier Group',
-      render: (item: ModifierGroupOpportunity) => (
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-md bg-emerald-100 flex items-center justify-center flex-shrink-0">
-            <Tag className="w-3.5 h-3.5 text-emerald-600" />
+      render: (item: ModifierGroupOpportunity) => {
+        const hasTwoCategories = isTwoCategoryGroup(item.modifier_group);
+        return (
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-md bg-emerald-100 flex items-center justify-center flex-shrink-0">
+              <Tag className="w-3.5 h-3.5 text-emerald-600" />
+            </div>
+            <span className="font-medium text-gray-900">{item.modifier_group}</span>
+            {hasTwoCategories && (
+              <span
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-xs font-medium"
+                title="Heatmap available - click row then 'View Heatmap'"
+              >
+                <Grid3X3 className="w-3 h-3" />
+              </span>
+            )}
           </div>
-          <span className="font-medium text-gray-900">{item.modifier_group}</span>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: 'capture_rate',
@@ -322,7 +374,10 @@ export function CategoryOpportunities() {
   ];
 
   // Build footer for non-branded table
-  const nbModGroups = nonBrandedData?.modifier_groups ?? [];
+  // Sort modifier groups by volume_uncaptured (opportunity size) descending
+  const nbModGroups = [...(nonBrandedData?.modifier_groups ?? [])].sort(
+    (a, b) => b.volume_uncaptured - a.volume_uncaptured
+  );
   const nonBrandedFooter = nbModGroups.length > 0 ? (
     <div className="flex justify-between text-sm">
       <div className="text-gray-600">
@@ -342,7 +397,10 @@ export function CategoryOpportunities() {
   ) : undefined;
 
   // Build footer for competitor table
-  const compModGroups = competitorData?.modifier_groups ?? [];
+  // Sort modifier groups by volume_uncaptured (opportunity size) descending
+  const compModGroups = [...(competitorData?.modifier_groups ?? [])].sort(
+    (a, b) => b.volume_uncaptured - a.volume_uncaptured
+  );
   const compBrands = competitorData?.competitor_brands ?? [];
   const compCatStats = competitorData?.category_stats ?? [];
   const competitorFooter = compModGroups.length > 0 ? (
@@ -678,6 +736,7 @@ export function CategoryOpportunities() {
         brandName={selectedBrand || ''}
         context="opportunity"
         keywordType={drawerState.keywordType}
+        onViewHeatmap={handleViewHeatmap}
       />
 
       {/* Category Detail Drawer */}
@@ -691,6 +750,77 @@ export function CategoryOpportunities() {
         brandName={selectedBrand || ''}
         context="opportunity"
         keywordType={categoryDrawer.keywordType}
+      />
+
+      {/* Heatmap Modal (for two-category modifier groups) */}
+      <HeatmapModal
+        isOpen={heatmapState.isOpen}
+        onClose={() =>
+          setHeatmapState({ isOpen: false, modifierGroup: '', keywordType: 'nonbranded' })
+        }
+        modifierGroup={heatmapState.modifierGroup}
+        brandName={selectedBrand || ''}
+        keywordType={heatmapState.keywordType}
+        onCellClick={(rowValue, colValue) => {
+          // Parse categories from modifier group
+          const { categories } = parseModifierGroup(heatmapState.modifierGroup);
+          const rowCategory = categories[0] || '';
+          const colCategory = categories[1] || '';
+
+          // Open combination keywords drawer
+          setCombinationState({
+            isOpen: true,
+            modifierGroup: heatmapState.modifierGroup,
+            rowCategory,
+            rowValue,
+            colCategory,
+            colValue,
+            keywordType: heatmapState.keywordType,
+          });
+
+          // Close heatmap modal
+          setHeatmapState({ isOpen: false, modifierGroup: '', keywordType: 'nonbranded' });
+        }}
+      />
+
+      {/* Combination Keywords Drawer (drill-down from heatmap cell) */}
+      <CombinationKeywordsDrawer
+        isOpen={combinationState.isOpen}
+        onClose={() =>
+          setCombinationState({
+            isOpen: false,
+            modifierGroup: '',
+            rowCategory: '',
+            rowValue: '',
+            colCategory: '',
+            colValue: '',
+            keywordType: 'nonbranded',
+          })
+        }
+        onBack={() => {
+          // Go back to heatmap modal
+          setHeatmapState({
+            isOpen: true,
+            modifierGroup: combinationState.modifierGroup,
+            keywordType: combinationState.keywordType,
+          });
+          setCombinationState({
+            isOpen: false,
+            modifierGroup: '',
+            rowCategory: '',
+            rowValue: '',
+            colCategory: '',
+            colValue: '',
+            keywordType: 'nonbranded',
+          });
+        }}
+        modifierGroup={combinationState.modifierGroup}
+        rowCategory={combinationState.rowCategory}
+        rowValue={combinationState.rowValue}
+        colCategory={combinationState.colCategory}
+        colValue={combinationState.colValue}
+        brandName={selectedBrand || ''}
+        keywordType={combinationState.keywordType}
       />
     </div>
   );

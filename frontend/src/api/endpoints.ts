@@ -37,6 +37,10 @@ import type {
   CategoryOpportunityBreakdown,
   CompetitorBrandedDashboard,
   ModifierGroupOpportunityBreakdown,
+  // Heatmap types
+  HeatmapResponse,
+  // Combination Keywords types
+  CombinationKeywordsResponse,
   // Home Dashboard types
   HomeDashboard,
 } from '../types';
@@ -406,6 +410,68 @@ export async function getModifierGroupOpportunityBreakdown(
         brand,
         modifier_group: modifierGroup,
         keyword_type: keywordType,
+      },
+    }
+  );
+  return response.data;
+}
+
+/**
+ * Get heatmap data for a two-category modifier group.
+ * Cross-tabulates row_category values against col_category values.
+ */
+export async function getModifierGroupHeatmap(
+  brand: string,
+  modifierGroup: string,
+  rowCategory: string,
+  colCategory: string,
+  keywordType: 'nonbranded' | 'competitor_branded',
+  maxRows: number = 12,
+  maxCols: number = 12
+): Promise<HeatmapResponse> {
+  const response = await apiClient.get<HeatmapResponse>(
+    '/dashboard/modifier-group-heatmap',
+    {
+      params: {
+        brand,
+        modifier_group: modifierGroup,
+        row_category: rowCategory,
+        col_category: colCategory,
+        keyword_type: keywordType,
+        max_rows: maxRows,
+        max_cols: maxCols,
+      },
+    }
+  );
+  return response.data;
+}
+
+/**
+ * Get keywords for a specific (row_value, col_value) combination.
+ * Used for drill-down from heatmap cells.
+ */
+export async function getCombinationKeywords(
+  brand: string,
+  modifierGroup: string,
+  rowCategory: string,
+  rowValue: string,
+  colCategory: string,
+  colValue: string,
+  keywordType: 'nonbranded' | 'competitor_branded',
+  limit: number = 50
+): Promise<CombinationKeywordsResponse> {
+  const response = await apiClient.get<CombinationKeywordsResponse>(
+    '/dashboard/combination-keywords',
+    {
+      params: {
+        brand,
+        modifier_group: modifierGroup,
+        row_category: rowCategory,
+        row_value: rowValue,
+        col_category: colCategory,
+        col_value: colValue,
+        keyword_type: keywordType,
+        limit,
       },
     }
   );

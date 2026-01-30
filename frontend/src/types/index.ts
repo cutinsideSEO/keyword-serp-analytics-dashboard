@@ -528,6 +528,67 @@ export interface CompetitorBrandedDashboard {
 }
 
 // =============================================================================
+// Heatmap Types (Two-Category Cross-Tabulation)
+// =============================================================================
+
+export interface HeatmapCell {
+  row_value: string;
+  col_value: string;
+  total_keywords: number;
+  total_volume: number;
+  volume_captured: number;
+  volume_uncaptured: number;
+  capture_rate: number;
+}
+
+export interface HeatmapResponse {
+  modifier_group: string;
+  row_category: string;
+  row_category_display: string;
+  col_category: string;
+  col_category_display: string;
+  row_values: string[];
+  col_values: string[];
+  cells: HeatmapCell[];
+  max_volume_uncaptured: number;
+  total_combinations: number;
+}
+
+// =============================================================================
+// Combination Keywords Types (Heatmap Cell Drill-Down)
+// =============================================================================
+
+export interface CombinationKeywordRanker {
+  rank: number;
+  domain: string;
+  domain_type: string;
+}
+
+export interface CombinationKeyword {
+  keyword_id: number;
+  keyword: string;
+  volume: number;
+  brand_position: number | null;
+  is_captured: boolean;
+  winner_domain: string | null;
+  winner_domain_type: string | null;
+  top_5: CombinationKeywordRanker[];
+}
+
+export interface CombinationKeywordsResponse {
+  row_value: string;
+  col_value: string;
+  row_category: string;
+  col_category: string;
+  total_keywords: number;
+  total_volume: number;
+  volume_captured: number;
+  volume_uncaptured: number;
+  capture_rate: number;
+  keywords: CombinationKeyword[];
+}
+
+// =============================================================================
 // Home Dashboard & Summary Types
 // =============================================================================
 

@@ -85,6 +85,10 @@ Frontend API Call → FastAPI Router → Service Method → Supabase RPC → Pos
 | Backend Utils | `backend/app/utils/rpc_helpers.py` | `unwrap_rpc_single()` / `unwrap_rpc_list()` for RPC response normalization |
 | Frontend Drawers | `frontend/src/components/dashboard/ModifierGroupDrawer.tsx` | Unified modifier group drill-down (protection + opportunity) |
 | Frontend Drawers | `frontend/src/components/dashboard/CategoryDetailDrawer.tsx` | Category drill-down drawer (protection) |
+| Frontend Drawers | `frontend/src/components/dashboard/CombinationKeywordsDrawer.tsx` | Heatmap cell drill-down (keywords for row+col combination) |
+| Frontend Modals | `frontend/src/components/dashboard/HeatmapModal.tsx` | Two-category cross-tabulation heatmap visualization |
+| Frontend Utils | `frontend/src/utils/modifierGroup.ts` | Parse modifier groups, detect two-category groups |
+| Frontend Utils | `frontend/src/utils/colorScale.ts` | Heatmap color scale utilities |
 | Frontend Tables | `frontend/src/components/dashboard/DataExplorer.tsx` | Generic data table with row click, pagination, footer |
 | Frontend Hooks | `frontend/src/hooks/useApi.ts` | `useApi` / `useApiWithParam` — TanStack Query wrappers |
 | Frontend Hooks | `frontend/src/hooks/usePersistedBrand.ts` | Cross-page brand persistence (localStorage, per-market) |
@@ -197,9 +201,21 @@ const Icon = getIcon(competitor.domain_type);
 
 **Drawer pattern**: All drill-down detail views use side-panel drawers (slide-in from right, escape key, overlay click-to-close, body scroll lock). Click any table row on any page to open a drawer with detailed breakdown. Two unified, context-aware drawer components handle all drill-downs:
 
-- **`ModifierGroupDrawer`** (`frontend/src/components/dashboard/ModifierGroupDrawer.tsx`) — Used by both Protect and Opportunities pages. Accepts a `context: 'protection' | 'opportunity'` prop to switch between win/loss metrics (protection) and capture/uncapture metrics (opportunity). Also accepts `keywordType?: 'nonbranded' | 'competitor_branded'` for the opportunity context. Contains hero stats with SVG progress ring, tabbed content (Values/Tags, Competitors, Keywords), and custom CSS visualizations.
+- **`ModifierGroupDrawer`** (`frontend/src/components/dashboard/ModifierGroupDrawer.tsx`) — Used by both Protect and Opportunities pages. Accepts a `context: 'protection' | 'opportunity'` prop to switch between win/loss metrics (protection) and capture/uncapture metrics (opportunity). Also accepts `keywordType?: 'nonbranded' | 'competitor_branded'` for the opportunity context. Contains hero stats with SVG progress ring, tabbed content (Values/Tags, Competitors, Keywords), and custom CSS visualizations. For two-category modifier groups in opportunity context, shows a "View Heatmap" button.
 - **`CategoryDetailDrawer`** (`frontend/src/components/dashboard/CategoryDetailDrawer.tsx`) — Used by the Protect page for category breakdowns. Accepts `context: 'protection' | 'opportunity'` prop. Contains hero stats, tabbed content (Values, Competitors, Keywords), and custom CSS visualizations.
+- **`CombinationKeywordsDrawer`** (`frontend/src/components/dashboard/CombinationKeywordsDrawer.tsx`) — Drill-down from heatmap cells. Shows keywords for a specific (row_value, col_value) combination with volume, brand position, capture status, and top 5 rankings. Has back button to return to heatmap.
 - **Base `Drawer`** (`frontend/src/components/common/Drawer.tsx`) — Low-level reusable shell that both drawers build on.
+
+**Heatmap pattern**: Two-category modifier groups (e.g., "Car Insurance , Insurance Company") can show a heatmap visualization. The flow is:
+1. **Modifier Groups Table** — Click row opens ModifierGroupDrawer
+2. **ModifierGroupDrawer** — "View Heatmap" button (if two-category) opens HeatmapModal
+3. **HeatmapModal** — 12x12 grid of category value combinations, colored by volume_uncaptured
+4. **CombinationKeywordsDrawer** — Click cell to see keywords for that combination
+
+Key components:
+- **`HeatmapModal`** (`frontend/src/components/dashboard/HeatmapModal.tsx`) — Modal with grid visualization, auto-detects categories from modifier group string using `parseModifierGroup()`
+- **`colorScale.ts`** (`frontend/src/utils/colorScale.ts`) — `getHeatmapColor()` returns Tailwind classes for cell background/text based on intensity
+- **`modifierGroup.ts`** (`frontend/src/utils/modifierGroup.ts`) — `parseModifierGroup()` splits comma-separated modifier groups, `isTwoCategoryGroup()` detects two-category groups
 
 **DataExplorer** (`frontend/src/components/dashboard/DataExplorer.tsx`): Generic table component used for all data tables on Protect page. Accepts typed columns via `ExplorerColumn<T>[]`, supports row click handlers (for opening drawers), pagination via "Show More", optional footer, and loading states. Styled with `rounded-xl border border-gray-200`.
 

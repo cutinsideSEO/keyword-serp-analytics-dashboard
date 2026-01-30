@@ -25,11 +25,16 @@ from app.schemas import (
     CategoryOpportunityStats,
     CategoryProtectionBreakdown,
     CategoryValueProtectionStats,
+    CombinationKeyword,
+    CombinationKeywordRanker,
+    CombinationKeywordsResponse,
     CompetitorBrandedDashboard,
     CompetitorStats,
     DomainTypeLossDetail,
     ExampleLoserKeyword,
     ExampleWinnerKeyword,
+    HeatmapCell,
+    HeatmapResponse,
     HomeDashboard,
     HomeDashboardKPIs,
     ModifierGroupOpportunity,
@@ -906,6 +911,193 @@ class SupabaseAnalyticsService:
             return CategoryOpportunityBreakdown(
                 category_name=category_name,
                 display_name=category_name,
+            )
+
+    async def get_modifier_group_heatmap(
+        self,
+        brand_name: str,
+        modifier_group: str,
+        row_category: str,
+        col_category: str,
+        keyword_type: str = "nonbranded",
+        max_rows: int = 12,
+        max_cols: int = 12,
+    ) -> HeatmapResponse:
+        """
+        Get heatmap data for a two-category modifier group.
+
+        Cross-tabulates row_category values against col_category values,
+        showing opportunity metrics (volume_uncaptured) for each combination.
+
+        Args:
+            brand_name: Brand to analyze
+            modifier_group: Modifier group value (e.g., "bicycle type, parts")
+            row_category: Category name for rows (e.g., "bicycle type")
+            col_category: Category name for columns (e.g., "parts")
+            keyword_type: "nonbranded" or "competitor_branded"
+            max_rows: Maximum number of row values (top by volume_uncaptured)
+            max_cols: Maximum number of column values (top by volume_uncaptured)
+
+        Returns:
+            HeatmapResponse with cells for each (row, col) combination
+        """
+        try:
+            result = self.client.rpc(
+                "get_modifier_group_heatmap",
+                {
+                    "p_market_id": self.market_id,
+                    "p_brand_name": brand_name,
+                    "p_modifier_group": modifier_group,
+                    "p_row_category": row_category,
+                    "p_col_category": col_category,
+                    "p_keyword_type": keyword_type,
+                    "p_max_rows": max_rows,
+                    "p_max_cols": max_cols,
+                }
+            ).execute()
+
+            data = unwrap_rpc_single(result.data, "get_modifier_group_heatmap")
+            if data:
+                cells = [
+                    HeatmapCell(
+                        row_value=c.get("row_value", ""),
+                        col_value=c.get("col_value", ""),
+                        total_keywords=c.get("total_keywords", 0),
+                        total_volume=c.get("total_volume", 0),
+                        volume_captured=c.get("volume_captured", 0),
+                        volume_uncaptured=c.get("volume_uncaptured", 0),
+                        capture_rate=c.get("capture_rate", 0),
+                    )
+                    for c in data.get("cells") or []
+                ]
+
+                return HeatmapResponse(
+                    modifier_group=data.get("modifier_group", modifier_group),
+                    row_category=data.get("row_category", row_category),
+                    row_category_display=data.get("row_category_display", row_category),
+                    col_category=data.get("col_category", col_category),
+                    col_category_display=data.get("col_category_display", col_category),
+                    row_values=data.get("row_values") or [],
+                    col_values=data.get("col_values") or [],
+                    cells=cells,
+                    max_volume_uncaptured=data.get("max_volume_uncaptured", 0),
+                    total_combinations=data.get("total_combinations", 0),
+                )
+
+            return HeatmapResponse(
+                modifier_group=modifier_group,
+                row_category=row_category,
+                row_category_display=row_category,
+                col_category=col_category,
+                col_category_display=col_category,
+            )
+        except Exception as e:
+            logger.exception(f"Error getting modifier group heatmap: {e}")
+            return HeatmapResponse(
+                modifier_group=modifier_group,
+                row_category=row_category,
+                row_category_display=row_category,
+                col_category=col_category,
+                col_category_display=col_category,
+            )
+
+    async def get_combination_keywords(
+        self,
+        brand_name: str,
+        modifier_group: str,
+        row_category: str,
+        row_value: str,
+        col_category: str,
+        col_value: str,
+        keyword_type: str = "nonbranded",
+        limit: int = 50,
+    ) -> CombinationKeywordsResponse:
+        """
+        Get keywords for a specific (row_value, col_value) combination.
+
+        Used for drill-down from heatmap cells. Returns keywords with full
+        ranking info including brand position and top 5 competitors.
+
+        Args:
+            brand_name: Brand to analyze
+            modifier_group: Modifier group value
+            row_category: Category name for rows
+            row_value: Selected row value
+            col_category: Category name for columns
+            col_value: Selected column value
+            keyword_type: "nonbranded" or "competitor_branded"
+            limit: Maximum number of keywords to return
+
+        Returns:
+            CombinationKeywordsResponse with keyword list and summary stats
+        """
+        try:
+            result = self.client.rpc(
+                "get_combination_keywords",
+                {
+                    "p_market_id": self.market_id,
+                    "p_brand_name": brand_name,
+                    "p_modifier_group": modifier_group,
+                    "p_row_category": row_category,
+                    "p_row_value": row_value,
+                    "p_col_category": col_category,
+                    "p_col_value": col_value,
+                    "p_keyword_type": keyword_type,
+                    "p_limit": limit,
+                }
+            ).execute()
+
+            data = unwrap_rpc_single(result.data, "get_combination_keywords")
+            if data:
+                keywords = []
+                for kw in data.get("keywords") or []:
+                    top_5 = [
+                        CombinationKeywordRanker(
+                            rank=r.get("rank", 0),
+                            domain=r.get("domain", ""),
+                            domain_type=r.get("domain_type", "3rd Party"),
+                        )
+                        for r in kw.get("top_5") or []
+                    ]
+                    keywords.append(
+                        CombinationKeyword(
+                            keyword_id=kw.get("keyword_id", 0),
+                            keyword=kw.get("keyword", ""),
+                            volume=kw.get("volume", 0),
+                            brand_position=kw.get("brand_position"),
+                            is_captured=kw.get("is_captured", False),
+                            winner_domain=kw.get("winner_domain"),
+                            winner_domain_type=kw.get("winner_domain_type"),
+                            top_5=top_5,
+                        )
+                    )
+
+                return CombinationKeywordsResponse(
+                    row_value=data.get("row_value", row_value),
+                    col_value=data.get("col_value", col_value),
+                    row_category=data.get("row_category", row_category),
+                    col_category=data.get("col_category", col_category),
+                    total_keywords=data.get("total_keywords", 0),
+                    total_volume=data.get("total_volume", 0),
+                    volume_captured=data.get("volume_captured", 0),
+                    volume_uncaptured=data.get("volume_uncaptured", 0),
+                    capture_rate=data.get("capture_rate", 0),
+                    keywords=keywords,
+                )
+
+            return CombinationKeywordsResponse(
+                row_value=row_value,
+                col_value=col_value,
+                row_category=row_category,
+                col_category=col_category,
+            )
+        except Exception as e:
+            logger.exception(f"Error getting combination keywords: {e}")
+            return CombinationKeywordsResponse(
+                row_value=row_value,
+                col_value=col_value,
+                row_category=row_category,
+                col_category=col_category,
             )
 
     async def get_modifier_group_protection_breakdown(

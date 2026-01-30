@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, Tag, Users, FileText } from 'lucide-react';
+import { Loader2, Tag, Users, FileText, Grid3X3 } from 'lucide-react';
 import { Drawer } from '../common/Drawer';
 import { HeroStats } from './drawer-parts/HeroStats';
 import { CompetitorsTab } from './drawer-parts/CompetitorsTab';
@@ -29,6 +29,7 @@ import {
   getModifierGroupOpportunityBreakdown,
   getModifierGroupMarketBreakdown,
 } from '../../api/endpoints';
+import { isTwoCategoryGroup } from '../../utils/modifierGroup';
 
 interface ModifierGroupDrawerProps {
   isOpen: boolean;
@@ -37,6 +38,8 @@ interface ModifierGroupDrawerProps {
   brandName?: string;
   context: DrawerContext;
   keywordType?: 'nonbranded' | 'competitor_branded';
+  /** Callback when "View Heatmap" is clicked (only for two-category opportunity groups) */
+  onViewHeatmap?: () => void;
 }
 
 type BreakdownData =
@@ -51,6 +54,7 @@ export function ModifierGroupDrawer({
   brandName,
   context,
   keywordType = 'nonbranded',
+  onViewHeatmap,
 }: ModifierGroupDrawerProps) {
   const [activeTab, setActiveTab] = useState<'values' | 'competitors' | 'keywords'>('values');
 
@@ -149,6 +153,20 @@ export function ModifierGroupDrawer({
                 avg_brand_position: (breakdown as ModifierGroupOpportunityBreakdown).avg_brand_position,
               }}
             />
+          )}
+
+          {/* View Heatmap Button (only for two-category opportunity groups) */}
+          {context === 'opportunity' && isTwoCategoryGroup(modifierGroup) && onViewHeatmap && (
+            <button
+              onClick={onViewHeatmap}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium rounded-lg border border-blue-200 transition-colors"
+            >
+              <Grid3X3 className="w-4 h-4" />
+              View Heatmap
+              <span className="text-xs text-blue-500 ml-1">
+                (explore category combinations)
+              </span>
+            </button>
           )}
 
           {/* Tabs */}

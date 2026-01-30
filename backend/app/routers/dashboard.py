@@ -20,8 +20,10 @@ from app.schemas import (
     CategoryOpportunityBreakdown,
     CategoryOpportunityDashboard,
     CategoryProtectionBreakdown,
+    CombinationKeywordsResponse,
     CompetitorBrandedDashboard,
     CompetitorStats,
+    HeatmapResponse,
     HomeDashboard,
     ModifierGroupOpportunityBreakdown,
     ModifierGroupProtectionBreakdown,
@@ -373,6 +375,99 @@ async def get_modifier_group_opportunity_breakdown(
     effective_market_id = market_id or get_current_market_id()
     service = SupabaseAnalyticsService(market_id=effective_market_id)
     return await service.get_modifier_group_opportunity_breakdown(brand, modifier_group, keyword_type)
+
+
+@router.get("/modifier-group-heatmap", response_model=HeatmapResponse)
+async def get_modifier_group_heatmap(
+    brand: str = Query(..., description="Brand name to analyze"),
+    modifier_group: str = Query(..., description="Modifier group to analyze (should contain two categories)"),
+    row_category: str = Query(..., description="Category name for rows"),
+    col_category: str = Query(..., description="Category name for columns"),
+    keyword_type: str = Query("nonbranded", description="Keyword type: nonbranded or competitor_branded"),
+    max_rows: int = Query(12, description="Maximum number of row values"),
+    max_cols: int = Query(12, description="Maximum number of column values"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
+) -> HeatmapResponse:
+    """
+    Get heatmap data for a two-category modifier group.
+
+    Cross-tabulates row_category values against col_category values,
+    showing opportunity metrics (volume_uncaptured) for each combination.
+
+    This is useful for modifier groups that span two categories like
+    "bicycle type, parts" where you want to see how different bike types
+    relate to different parts.
+
+    Args:
+        brand: Brand name to analyze
+        modifier_group: Modifier group value (e.g., "bicycle type, parts")
+        row_category: Category for rows (e.g., "bicycle type")
+        col_category: Category for columns (e.g., "parts")
+        keyword_type: Type of keywords (nonbranded or competitor_branded)
+        max_rows: Max row values to return (top by volume_uncaptured)
+        max_cols: Max column values to return (top by volume_uncaptured)
+        market_id: Market ID (optional)
+
+    Returns:
+        Heatmap data with cells for each (row, col) combination
+    """
+    effective_market_id = market_id or get_current_market_id()
+    service = SupabaseAnalyticsService(market_id=effective_market_id)
+    return await service.get_modifier_group_heatmap(
+        brand_name=brand,
+        modifier_group=modifier_group,
+        row_category=row_category,
+        col_category=col_category,
+        keyword_type=keyword_type,
+        max_rows=max_rows,
+        max_cols=max_cols,
+    )
+
+
+@router.get("/combination-keywords", response_model=CombinationKeywordsResponse)
+async def get_combination_keywords(
+    brand: str = Query(..., description="Brand name to analyze"),
+    modifier_group: str = Query(..., description="Modifier group value"),
+    row_category: str = Query(..., description="Category name for rows"),
+    row_value: str = Query(..., description="Selected row value"),
+    col_category: str = Query(..., description="Category name for columns"),
+    col_value: str = Query(..., description="Selected column value"),
+    keyword_type: str = Query("nonbranded", description="Keyword type: nonbranded or competitor_branded"),
+    limit: int = Query(50, description="Maximum number of keywords to return"),
+    market_id: Optional[str] = Query(None, description="Market ID"),
+) -> CombinationKeywordsResponse:
+    """
+    Get keywords for a specific (row_value, col_value) combination.
+
+    Used for drill-down from heatmap cells. Returns keywords with full
+    ranking info including brand position and top 5 competitors.
+
+    Args:
+        brand: Brand name to analyze
+        modifier_group: Modifier group value
+        row_category: Category name for rows
+        row_value: Selected row value
+        col_category: Category name for columns
+        col_value: Selected column value
+        keyword_type: Type of keywords (nonbranded or competitor_branded)
+        limit: Maximum number of keywords to return
+        market_id: Market ID (optional)
+
+    Returns:
+        Keywords with full ranking details for the combination
+    """
+    effective_market_id = market_id or get_current_market_id()
+    service = SupabaseAnalyticsService(market_id=effective_market_id)
+    return await service.get_combination_keywords(
+        brand_name=brand,
+        modifier_group=modifier_group,
+        row_category=row_category,
+        row_value=row_value,
+        col_category=col_category,
+        col_value=col_value,
+        keyword_type=keyword_type,
+        limit=limit,
+    )
 
 
 @router.get(
