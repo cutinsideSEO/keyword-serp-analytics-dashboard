@@ -90,6 +90,15 @@ async def get_market_config(market_id: str) -> MarketConfigResponse:
         for dt in (dt_result.data or [])
     ]
 
+    # Parse brand_category_names - could be JSON string or list
+    brand_cat_names = market.get("brand_category_names", [])
+    if isinstance(brand_cat_names, str):
+        import json
+        try:
+            brand_cat_names = json.loads(brand_cat_names)
+        except (json.JSONDecodeError, TypeError):
+            brand_cat_names = []
+
     return MarketConfigResponse(
         id=market["id"],
         name=market["name"],
@@ -97,6 +106,7 @@ async def get_market_config(market_id: str) -> MarketConfigResponse:
         language=market.get("language", "en"),
         text_direction=market.get("text_direction", "ltr"),
         domain_types=domain_type_responses,
+        brand_category_names=brand_cat_names or [],
     )
 
 

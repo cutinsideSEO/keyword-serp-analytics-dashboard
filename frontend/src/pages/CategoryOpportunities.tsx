@@ -20,6 +20,18 @@ import { CombinationKeywordsDrawer } from '../components/dashboard/CombinationKe
 import { useApiWithParam } from '../hooks/useApi';
 import { usePersistedBrand } from '../hooks/usePersistedBrand';
 import { useMarketConfig } from '../contexts/MarketConfigContext';
+
+/**
+ * Normalize a category name for comparison with brand_category_names.
+ * Handles variations in formatting (spaces, underscores, capitalization).
+ */
+function normalizeCategoryName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')      // Replace underscores/dashes with spaces
+    .replace(/\s+/g, ' ')        // Normalize multiple spaces
+    .trim();
+}
 import { getCategoryOpportunities, getCompetitorBrandedOpportunities } from '../api/endpoints';
 import { formatNumber, formatCompactNumber, formatPercent } from '../utils/formatters';
 import { isTwoCategoryGroup, parseModifierGroup } from '../utils/modifierGroup';
@@ -50,6 +62,9 @@ export function CategoryOpportunities() {
   const [selectedBrand, setSelectedBrand] = usePersistedBrand();
   const nonBrandedTableRef = useRef<HTMLDivElement>(null);
   const competitorTableRef = useRef<HTMLDivElement>(null);
+
+  // Get brand category names from market config for filtering
+  const { brandCategoryNames } = useMarketConfig();
 
   // Drawer state
   const [drawerState, setDrawerState] = useState<{
@@ -375,9 +390,21 @@ export function CategoryOpportunities() {
 
   // Build footer for non-branded table
   // Sort modifier groups by volume_uncaptured (opportunity size) descending
-  const nbModGroups = [...(nonBrandedData?.modifier_groups ?? [])].sort(
-    (a, b) => b.volume_uncaptured - a.volume_uncaptured
-  );
+  // Filter out modifier groups that contain a brand category (they shouldn't appear in non-branded)
+  const normalizedBrandCategories = brandCategoryNames.map(normalizeCategoryName);
+
+  const nbModGroups = [...(nonBrandedData?.modifier_groups ?? [])]
+    .filter((mg) => {
+      // Parse the modifier group to get its categories
+      const { categories } = parseModifierGroup(mg.modifier_group);
+      // Check if any category in this modifier group is a brand category
+      const hasBrandCategory = categories.some((cat) =>
+        normalizedBrandCategories.includes(normalizeCategoryName(cat))
+      );
+      // Keep only groups that don't have any brand categories
+      return !hasBrandCategory;
+    })
+    .sort((a, b) => b.volume_uncaptured - a.volume_uncaptured);
   const nonBrandedFooter = nbModGroups.length > 0 ? (
     <div className="flex justify-between text-sm">
       <div className="text-gray-600">

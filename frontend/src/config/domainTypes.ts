@@ -34,6 +34,7 @@ export interface MarketConfig {
   language: string;
   textDirection: string;
   domainTypes: DomainTypeConfig[];
+  brandCategoryNames: string[];
 }
 
 // Icon mapping from string names to Lucide components
@@ -198,4 +199,5 @@ export const DEFAULT_MARKET_CONFIG: MarketConfig = {
   language: 'he',
   textDirection: 'rtl',
   domainTypes: DEFAULT_DOMAIN_TYPES,
+  brandCategoryNames: ['Insurance Company - Canonical', 'Insurance Agent - Canonical'],
 };

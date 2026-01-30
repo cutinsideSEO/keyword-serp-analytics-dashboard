@@ -62,6 +62,7 @@ class MarketConfigResponse(BaseSchema):
     language: str = "en"
     text_direction: str = "ltr"
     domain_types: List[MarketDomainTypeResponse] = Field(default_factory=list)
+    brand_category_names: List[str] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 

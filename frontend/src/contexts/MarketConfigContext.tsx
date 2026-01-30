@@ -50,6 +50,7 @@ interface MarketConfigAPI {
     icon: string;
     is_brand_type: boolean;
   }>;
+  brand_category_names: string[];
 }
 
 interface MarketConfigContextValue {
@@ -66,6 +67,9 @@ interface MarketConfigContextValue {
 
   // Raw API format for components expecting snake_case
   marketConfig: MarketConfigAPI | null;
+
+  // Brand category names for filtering branded modifier groups
+  brandCategoryNames: string[];
 
   // Helper functions for easy access
   getTremorColor: (typeName: string) => string;
@@ -165,6 +169,7 @@ export function MarketConfigProvider({ children }: MarketConfigProviderProps) {
           borderClass: dt.border_class,
           icon: dt.icon,
         })),
+        brandCategoryNames: data.brand_category_names || [],
       };
 
       setConfig(marketConfig);
@@ -217,6 +222,9 @@ export function MarketConfigProvider({ children }: MarketConfigProviderProps) {
     setCurrentMarket,
 
     marketConfig: marketConfigAPI,
+
+    // Brand category names for filtering branded modifier groups
+    brandCategoryNames: config.brandCategoryNames || [],
 
     getTremorColor: (typeName: string) => tremorColorMap[typeName] || 'gray',
     getHexColor: (typeName: string) => hexColorMap[typeName] || '#6B7280',
