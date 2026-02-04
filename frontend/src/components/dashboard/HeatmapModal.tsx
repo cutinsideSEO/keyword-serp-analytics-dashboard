@@ -11,6 +11,7 @@ import { getModifierGroupHeatmap } from '../../api/endpoints';
 import { getHeatmapColor, formatHeatmapVolume } from '../../utils/colorScale';
 import { formatPercent } from '../../utils/formatters';
 import { parseModifierGroup } from '../../utils/modifierGroup';
+import { useMarketConfig } from '../../contexts/MarketConfigContext';
 import type { HeatmapResponse, HeatmapCell } from '../../types';
 
 interface HeatmapModalProps {
@@ -30,6 +31,8 @@ export function HeatmapModal({
   keywordType,
   onCellClick,
 }: HeatmapModalProps) {
+  const { currentMarketId } = useMarketConfig();
+
   // Parse categories from modifier group
   const { categories } = parseModifierGroup(modifierGroup);
   const rowCategory = categories[0] || '';
@@ -41,7 +44,7 @@ export function HeatmapModal({
     isLoading,
     error,
   } = useQuery<HeatmapResponse>({
-    queryKey: ['heatmap', modifierGroup, brandName, keywordType],
+    queryKey: ['heatmap', currentMarketId, modifierGroup, brandName, keywordType],
     queryFn: () =>
       getModifierGroupHeatmap(
         brandName,

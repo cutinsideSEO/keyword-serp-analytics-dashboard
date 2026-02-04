@@ -33,6 +33,7 @@ import {
   getCategoryOpportunityBreakdown,
 } from '../../api/endpoints';
 import { formatCompactNumber } from '../../utils/formatters';
+import { useMarketConfig } from '../../contexts/MarketConfigContext';
 
 interface CategoryDetailDrawerProps {
   isOpen: boolean;
@@ -56,12 +57,13 @@ export function CategoryDetailDrawer({
   keywordType = 'nonbranded',
 }: CategoryDetailDrawerProps) {
   const [activeTab, setActiveTab] = useState<'values' | 'competitors' | 'keywords'>('values');
+  const { currentMarketId } = useMarketConfig();
 
   const needsBrand = context !== 'market';
   const queryEnabled = isOpen && !!categoryName && (!needsBrand || !!brandName);
 
   const { data: breakdown = null, isLoading: loading, error: queryError, refetch } = useQuery<BreakdownData>({
-    queryKey: ['category-breakdown', context, categoryName, brandName, keywordType],
+    queryKey: ['category-breakdown', currentMarketId, context, categoryName, brandName, keywordType],
     queryFn: () => {
       if (context === 'market') {
         return getCategoryMarketBreakdown(categoryName, 15);

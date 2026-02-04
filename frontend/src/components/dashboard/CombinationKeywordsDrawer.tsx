@@ -143,13 +143,15 @@ export function CombinationKeywordsDrawer({
   brandName,
   keywordType,
 }: CombinationKeywordsDrawerProps) {
+  const { currentMarketId } = useMarketConfig();
+
   // Fetch combination keywords
   const {
     data,
     isLoading,
     error,
   } = useQuery<CombinationKeywordsResponse>({
-    queryKey: ['combinationKeywords', modifierGroup, rowValue, colValue, brandName, keywordType],
+    queryKey: ['combinationKeywords', currentMarketId, modifierGroup, rowValue, colValue, brandName, keywordType],
     queryFn: () =>
       getCombinationKeywords(
         brandName,

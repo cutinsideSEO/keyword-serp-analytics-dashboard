@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Combobox } from '@/components/ui/combobox';
 import { getBrands } from '../../api/endpoints';
 import { formatCompactNumber } from '../../utils/formatters';
+import { useMarketConfig } from '../../contexts/MarketConfigContext';
 
 interface BrandPickerProps {
   value: string | null;
@@ -23,8 +24,10 @@ export function BrandPicker({
   minVolume = 100,
   placeholder = 'Select a brand...',
 }: BrandPickerProps) {
+  const { currentMarketId } = useMarketConfig();
+
   const { data, isLoading: loading, error } = useQuery({
-    queryKey: ['brands', minKeywords, minVolume],
+    queryKey: ['brands', currentMarketId, minKeywords, minVolume],
     queryFn: () => getBrands(minKeywords, minVolume),
   });
 

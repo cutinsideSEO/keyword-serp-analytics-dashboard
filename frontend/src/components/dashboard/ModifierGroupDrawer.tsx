@@ -30,6 +30,7 @@ import {
   getModifierGroupMarketBreakdown,
 } from '../../api/endpoints';
 import { isTwoCategoryGroup } from '../../utils/modifierGroup';
+import { useMarketConfig } from '../../contexts/MarketConfigContext';
 
 interface ModifierGroupDrawerProps {
   isOpen: boolean;
@@ -57,12 +58,13 @@ export function ModifierGroupDrawer({
   onViewHeatmap,
 }: ModifierGroupDrawerProps) {
   const [activeTab, setActiveTab] = useState<'values' | 'competitors' | 'keywords'>('values');
+  const { currentMarketId } = useMarketConfig();
 
   const needsBrand = context !== 'market';
   const queryEnabled = isOpen && !!modifierGroup && (!needsBrand || !!brandName);
 
   const { data: breakdown = null, isLoading: loading, error: queryError, refetch } = useQuery<BreakdownData>({
-    queryKey: ['modifier-group-breakdown', context, modifierGroup, brandName, keywordType],
+    queryKey: ['modifier-group-breakdown', currentMarketId, context, modifierGroup, brandName, keywordType],
     queryFn: () => {
       if (context === 'market') {
         return getModifierGroupMarketBreakdown(modifierGroup, 15);
